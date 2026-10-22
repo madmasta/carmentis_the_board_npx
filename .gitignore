@@ -1,0 +1,15 @@
+node_modules/
+var/
+.env
+.env.local
+*.log
+npm-debug.log*
+coverage/
+.nyc_output/
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+worktrees/
+wt-*/
