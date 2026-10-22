@@ -37,7 +37,18 @@ before the run. The Node equivalent (`test/helpers/db.mjs`):
    rendered for the signed-in session. No seeded persona has MFA enabled, so
    `loginAs` never needs an OTP unless the test turned it on first.
 6. Test env forces `APP_DEBUG=0`, `MAIL_DRIVER=log`, `LOGIN_THROTTLE_DISABLED=0`,
-   `ADMIN_EMAILS=root-admin@test.example`, matching `phpunit.xml`.
+   `ADMIN_EMAILS=root-admin@test.example`, matching `phpunit.xml`. Those are the
+   baseline values for `main` and for any branch that does not name the control
+   behind them. A test that needs to measure the **shipped** defaults instead —
+   `vuln/security_misconfig` and the `C-INFO-1` control proof — calls
+   `test/helpers/env.mjs#clearKeys([...])` to remove the named keys from
+   `process.env` for one case, so `config/defaults.js` decides, and restores them
+   afterwards. A control proof of this kind asserts the value shipped in
+   `config/defaults.js`, so a branch that changes that default declares the control
+   and its `c-<slug>` case is skipped; the branch's own exploit test then asserts
+   both halves — the unsafe shipped default, and that setting the key back in the
+   environment restores the secure behaviour — which is what keeps the finding a
+   misconfiguration rather than a logic defect.
 
 Tests that need the throttle disabled or an expired OTP drive time through
 `src/lib/clock.js` (`setClockForTests(nowFn)`), never by sleeping and never by
@@ -99,6 +110,12 @@ sheet that lists a control which is still enforced also fails. That keeps the
 baseline suite green on a branch while making the downgrade explicit and
 auditable.
 
+Skips are **case-level, not file-level**. Per `docs/03`, every proof case carries
+the control slug in its name; a declared control ID skips only the cases whose name
+contains that slug, and every other case in the same file runs. A sheet that
+downgrades one clause of a control writes the clause in its table (for example
+`C-ASSIGN-1 (field allowlist clause)`) so the remaining clauses stay asserted.
+
 Two extensions of that rule, both mandatory:
 
 - **The mapping is not limited to `controls.test.mjs`.** Each control's
@@ -140,7 +157,10 @@ and asserts the output contains no executable construct: no `<script`, no
 raw text of the probe still appears as escaped text. This file must pass on
 `main` and must fail on every XSS-family branch (`xss_stored`, `xss_reflected`,
 `xss_dom`, `xss_config`, `ssti`) — that is a secondary differential the harness
-checks alongside the branch's own test.
+checks alongside the branch's own test. This gate is **not** a proof case of any
+control, which is why an XSS branch can fail it without declaring `C-XSS-3`.
+`verify:branch` runs it separately and expects it to fail on exactly those five
+branches and to pass on the other thirty.
 
 ## 9. Determinism rules
 

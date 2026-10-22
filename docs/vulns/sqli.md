@@ -45,18 +45,24 @@ and `email` (`VARCHAR(255)`) — a bcrypt hash is 60 characters, so extracted ha
 go in the **email** slot, not the username slot.
 
 The branch concatenates the search term into the SQL text and passes no parameter
-array, and `src/db/connection.js` stops setting `multipleStatements: false` so a
-statement separator starts working.
+array, and `src/db/connection.js` sets `multipleStatements: true` **explicitly** —
+`mysql2` already defaults the flag to `false`, so an option that is merely absent
+would change nothing and `C-SQL-2` would be declared but still enforced. The
+interpolation must be written so the `C-SQL-1` scan sees it: the fragment is built
+inside the repository module with `+` or `${`, which is what that control's source
+scan looks for anywhere under `src/repositories/`.
 
-`src/hooks/directory.js#buildFilter` also interpolates the `q` token instead of
-binding it, making the directory a second instance of the same class.
+`src/hooks/directory.js#buildFilter` also interpolates the `q` token into the
+`where` fragment instead of binding it, making the directory a second instance of
+the same class. That projection has **5 columns**: `id`, `username`, `role`,
+`created_at`, `post_count` (`docs/02` §7).
 
 ## Baseline control removed
 
 | Control | Control text (summary) | How the diff removes it |
 |---|---|---|
 | `C-SQL-1` | Every statement goes through `connection.query(sql, params)` with `?` placeholders; user data never concatenates into SQL text | the `WHERE` fragment is built by string interpolation and the params array is dropped |
-| `C-SQL-2` | The pool is created with `multipleStatements: false` | the option is no longer set, so it defaults to permissive and stacked statements execute |
+| `C-SQL-2` | The pool is created with `multipleStatements: false` written explicitly | the option is set to `true`, so a statement separator executes |
 
 Side effect the diff must declare, not hide: interpolating `q` in
 `hooks/directory.js#buildFilter` also breaks the directory token binding that
@@ -64,13 +70,18 @@ Side effect the diff must declare, not hide: interpolating `q` in
 
 | Control | Control text (summary) | How the diff removes it |
 |---|---|---|
-| `C-DIR-1` | Directory filter tokens are parsed into `{field, op, value}` and the value is bound as a parameter | `buildFilter` concatenates the raw token into the WHERE fragment |
+| `C-DIR-1` | Directory filter tokens are parsed into `{field, op, value}` and the value is bound as a parameter | `buildFilter` concatenates the raw token into the `where` fragment |
+
+Only the cases carrying the slugs `c-sql-1`, `c-sql-2` and `c-dir-1` are skipped
+(`docs/03` skip granularity): the `c-dir-2` cases in
+`test/unit/hook-directory.test.mjs` — non-primitive filter values rejected — still
+run and must stay green.
 
 ## Minimal diff
 
 Files touched:
 
-- `src/db/connection.js` — delete the `multipleStatements: false` option.
+- `src/db/connection.js` — change the pool option to `multipleStatements: true`.
 - `src/repositories/user.repository.js` — `allUsers(search)` builds the `WHERE`
   fragment with template interpolation and calls `query(sql)` with no params.
 - `src/hooks/directory.js` — `buildFilter` interpolates the `q` token.
@@ -78,11 +89,12 @@ Files touched:
 
 ## Payload sketch
 
-Read a credential the app never renders, into the rendered `email` slot:
+Read a credential the app never renders, into the rendered `email` slot. The
+payload must supply all **11** projection columns, so `post_count` is repeated:
 
 ```
 GET /admin/users?q=' UNION SELECT id, username, password_hash, role, is_banned,
-    ban_reason, mfa_enabled, created_at, updated_at, post_count
+    ban_reason, mfa_enabled, created_at, updated_at, post_count, post_count
     FROM users WHERE username='mod_marcus'-- -
 ```
 
@@ -93,12 +105,17 @@ GET /admin/users?q='; INSERT INTO boards (name, description, default_access)
     VALUES ('pwned-sqli', 'stacked statement proof', 1)-- -
 ```
 
-Boolean probe (no timing, deterministic):
+Boolean probe (no timing, deterministic). The probe has to open the `LIKE`
+wildcard first — a bare `' AND 1=1-- -` collapses to `LIKE ''`, which matches no
+row on either branch and proves nothing:
 
 ```
-GET /admin/users?q=' AND 1=1-- -     -> rows returned
-GET /admin/users?q=' AND 1=2-- -     -> "No users match that search."
+GET /admin/users?q=%' OR 1=1-- -     -> "All users (10)"
+GET /admin/users?q=%' OR 1=2-- -     -> "All users (0)"
 ```
+
+The heading text `All users (N)` is the string the PHP template renders and the
+Node port must keep, so no new empty-state copy is invented.
 
 Expected effect: the admin users table contains a row whose email cell holds the
 60-character bcrypt hash of another account, and the `boards` table gains a row
@@ -116,30 +133,36 @@ the application never created.
 4. `GET /admin/users` with the stacked-statement payload; assert `200`, then
    `helpers/db.mjs#count("SELECT COUNT(*) FROM boards WHERE name = 'pwned-sqli'")`
    equals 1.
-5. Assert the boolean pair behaves as injected: the `1=1` probe returns rows and
-   the `1=2` probe returns the empty-state message, both with the same payload
-   prefix.
-6. Secondary sink: `GET /directory?q=<same UNION shape>` returns rows it should not
-   be able to return.
-7. Assert the non-injected search still works: `q=regular` returns exactly the
+5. Assert the boolean pair behaves as injected: the `%' OR 1=1-- -` probe renders
+   `All users (10)` and the `%' OR 1=2-- -` probe renders `All users (0)`, with the
+   same payload prefix in both.
+6. Secondary sink: `GET /directory?q=%' OR 1=1-- -` renders all ten personas, and
+   the 5-column UNION form of the same payload puts `outsider_olly` in a result the
+   role filter should have excluded.
+7. Assert the guard still works: an anonymous `GET /admin/users?q=<payload>` is a
+   `303` to `/login`, so the injection needs a session and the finding is not also
+   an access-control break.
+8. Assert the non-injected search still works: `q=regular` returns exactly the
    `regular_rita` row, so the search feature functions and only the binding is gone.
 
 On `main` every assertion in steps 3-6 must fail: `allUsers` passes the term as a
-bound parameter, so all three payloads are literal search text that matches no row
-(step 3 returns the empty-state page, step 4 leaves `boards` at its seeded count,
-step 5's two probes behave identically, step 6 is a parameterized filter); the
-`multipleStatements: false` pool would reject step 4's second statement even if the
-first half were interpolated.
+bound parameter, so all three payloads are literal search text — step 3 renders
+`All users (0)`, step 4 leaves `boards` at its seeded count, step 5 renders
+`All users (0)` for both probes, and step 6 filters on a token that matches no
+persona; the explicit `multipleStatements: false` pool rejects step 4's second
+statement even if the first half were interpolated. Step 7 (the guard) and step 8
+(the working search) behave identically on both sides by design.
 
 ## Must-not-break invariants
 
-- Step 7 above: parity tests for search (`test/unit/repository-users.test.mjs`) may
-  not fail on the branch — the search box still filters, it just interpolates.
+- Step 8 (`q=regular` returns exactly the `regular_rita` row): parity tests for
+  search (`test/unit/repository-users.test.mjs`) may not fail on the branch — the
+  search box still filters, it just interpolates.
 - The rest of the baseline suite stays green; per `docs/04` §6 the branch declares
-  `C-SQL-1`, `C-SQL-2` and `C-DIR-1`, which maps to skipping
-  `test/security/controls.test.mjs` proofs for those IDs plus
-  `test/unit/db-connection.test.mjs` (the `C-SQL-2` proof) and
-  `test/unit/hook-directory.test.mjs` (the `C-DIR-1` proof), and nothing else.
+  `C-SQL-1`, `C-SQL-2` and `C-DIR-1`, which skips only the cases carrying those
+  slugs — in `test/security/controls.test.mjs`, `test/unit/db-connection.test.mjs`
+  and `test/unit/hook-directory.test.mjs` — and every other case, including
+  `c-dir-2`, `c-sess-*` and `c-acl-*`, still runs.
 - CSRF, sessions and ACL stay intact and are asserted in step 1-2 (the payload
   needs a real admin session; an anonymous request is redirected).
 - The XSS family stays fixed: the extracted hash is escaped on output, so

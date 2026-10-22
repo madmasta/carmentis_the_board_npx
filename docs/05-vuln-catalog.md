@@ -36,14 +36,14 @@ new fixture/test harness.
 | 14 | `vuln/jwt_flaws` | CWE-347, CWE-345 | Token verification bypass | `POST /reset-password` (`token`) | `C-JWT-1` | `src/security/jwt.js#verify` | M | [sheet](vulns/jwt_flaws.md) |
 | 15 | `vuln/ldap_injection` | CWE-90 | LDAP-style filter injection | `GET /directory?q=` (`q`) | `C-DIR-1` | `src/hooks/directory.js#buildFilter` | M | [sheet](vulns/ldap_injection.md) |
 | 16 | `vuln/log_injection` | CWE-117 | Log forging | any request (`User-Agent`, path) | `C-INFO-3` | `src/http/server.js#logRequest` | S | [sheet](vulns/log_injection.md) |
-| 17 | `vuln/mass_assignment` | CWE-915 | Mass parameter assignment | `POST /profile/email` (`role`) | `C-ASSIGN-1` | `src/http/profile.controller.js#readInput` | M | [sheet](vulns/mass_assignment.md) |
+| 17 | `vuln/mass_assignment` | CWE-915 | Mass parameter assignment | `POST /profile` (`role`) | `C-ASSIGN-1` (field-allowlist clause) | `src/http/profile.controller.js#update` | M | [sheet](vulns/mass_assignment.md) |
 | 18 | `vuln/nosql_injection` | CWE-917 | Operator injection in a document query | `GET /directory?q[$ne]=` | `C-DIR-2` | `src/hooks/directory.js#matchDoc` | S | [sheet](vulns/nosql_injection.md) |
 | 19 | `vuln/open_redirect` | CWE-601 | URL redirection to untrusted site | `GET /login?next=//…` | `C-REDIR-1` | `src/http/auth.controller.js#consumeIntendedPath` | S | [sheet](vulns/open_redirect.md) |
 | 20 | `vuln/path_traversal` | CWE-22 | Path traversal | `GET /attachment?file=../` | `C-UPLOAD-1`, `C-INFO-2` | `src/hooks/upload.js#readAttachment` | M | [sheet](vulns/path_traversal.md) |
 | 21 | `vuln/race_condition` | CWE-362 | Race condition / single-use bypass | `POST /mfa` (`code`) | `C-RACE-1` | `src/security/mfa.js#verify` | M | [sheet](vulns/race_condition.md) |
 | 22 | `vuln/security_misconfig` | CWE-16, CWE-215 | Insecure shipped defaults | app-wide, `/assets/`, `/server-info` | `C-INFO-1`, `C-INFO-2`, `C-AUTH-3` | `config/defaults.js`, `src/http/server.js` | M | [sheet](vulns/security_misconfig.md) |
 | 23 | `vuln/sensitive_data_exposure` | CWE-201, CWE-259 | Sensitive data in responses/logs | `GET /admin/users`, `GET /profile` | `C-DATA-1`, `C-INFO-3` | `src/repositories/user.repository.js#toPublic` | S | [sheet](vulns/sensitive_data_exposure.md) |
-| 24 | `vuln/session_management` | CWE-384, CWE-330 | Session fixation / id handling | `POST /login` (cookie) | `C-SESS-2`, `C-SESS-1` | `src/session/store.js#regenerate` | M | [sheet](vulns/session_management.md) |
+| 24 | `vuln/session_management` | CWE-384 | Session fixation / id handling | `POST /login` (cookie) | `C-SESS-2`, `C-SESS-1` | `src/session/store.js#regenerate` | M | [sheet](vulns/session_management.md) |
 | 25 | `vuln/sqli` | CWE-89 | SQL injection | `GET /admin/users?q=`, `GET /directory?q=` | `C-SQL-1`, `C-SQL-2`, `C-DIR-1` | `src/repositories/user.repository.js#allUsers` | M | [sheet](vulns/sqli.md) |
 | 26 | `vuln/ssrf` | CWE-918 | Server-side request forgery | `POST /preview` (`url`) | `C-SSRF-1` | `src/hooks/preview.js#fetchTarget` | M | [sheet](vulns/ssrf.md) |
 | 27 | `vuln/ssti` | CWE-1336 | Server-side template injection | `POST /board/:id/import` (XML body text) | `C-SSTI-1` | `src/hooks/xml-import.js#renderText` | M | [sheet](vulns/ssti.md) |

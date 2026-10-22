@@ -37,14 +37,21 @@ comparison, so concurrent verifications all read the same unused row.
 
 | Control | Control text (summary) | How the diff removes it |
 |---|---|---|
-| `C-RACE-1` | One-shot invariants run in a transaction with a row lock | the lock and the early burn are removed |
+| `C-RACE-1` | One-shot invariants hold under concurrency: check-then-act on a single-use resource runs in a transaction with `SELECT … FOR UPDATE` | the transaction and the row lock are dropped, and the burn moves after the comparison |
+
+`C-MFA-1` is **not** declared: per `docs/03`'s clause ownership, `C-MFA-1` is the
+OTP lifecycle (issue, TTL, attempt cap, re-issue invalidation, resend throttle) and
+`C-RACE-1` is single-use under concurrency. This diff changes only the latter.
 
 ## Minimal diff
 
 Files touched:
 
 - `src/security/mfa.js` — replace `transaction()`/`forUpdate()` with plain
-  `query()` calls, and move the `used_at = NOW()` update after the comparison.
+  `query()` calls, move the `used_at = NOW()` update after the comparison, and put
+  `await delayMs(350)` between the read and the burn. That seam is the sanctioned
+  way to make the window provable (`docs/04` §9): it is part of the branch diff, it
+  is at least 300 ms, and the test asserts **counts**, never elapsed time.
 - `test/vulns/race_condition.test.mjs` — new file.
 
 ## Payload sketch
@@ -86,14 +93,17 @@ row gains a `user_id`.
 - The attempt counter is still incremented (asserted by this test reading
   `mfa_codes.attempts` afterwards), so the branch is not also removing `C-MFA-1`.
 - Login throttling unaffected; `test/security/baseline-inert.test.mjs` passes.
-- `test/security/controls.test.mjs` skips only `C-RACE-1`.
+- Only the `c-race-1` cases are skipped; the ten `c-mfa-1` lifecycle cases in
+  `test/integration/mfa.test.mjs` run and must stay green.
 
 ## Fidelity to the PHP branch
 
 The PHP target's race branch has the same shape: the code row is read, then
 verified, then burned, without a transaction. Node makes the window wider and
 easier to prove because the pool serves concurrent requests on separate
-connections, so 12 parallel requests reliably land inside the window.
+connections, and the 350 ms seam in the branch diff makes the window wide enough
+that 12 parallel requests reliably land inside it; the assertion is on the number of
+successful verifications and `sessions` rows, never on elapsed time.
 
 ## Carmentis evidence
 

@@ -31,19 +31,26 @@ an attacker can mint a credential for any account.
 The branch replaces it with:
 
 ```js
-const decoded = jwt.decode(token, { complete: true, json: true });
+const decoded = jwt.decode(token, { complete: true });   // no key, no algorithms
 if (!decoded || !decoded.payload) throw new TokenError('bad token');
-return decoded.payload;
+const { payload } = decoded;
+if (payload.exp && payload.exp < nowSeconds()) throw new TokenError('expired');
+if (jtiStore.isUsed(payload.jti)) throw new TokenError('replayed');
+jtiStore.markUsed(payload.jti);
+return payload;
 ```
 
-so no signature check happens at all, and the `jti` single-use check is kept (the
-branch keeps the replay guard so the finding is specifically about verification).
+The signature and `algorithms` check disappear; `exp` and the `jti` single-use guard
+are deliberately **kept**, so the expired-token and replay cases still behave on the
+branch and the finding is isolated to verification. (`jwt.decode` takes only
+`complete`; there is no `json` option, and inventing one would make the diff not
+run.)
 
 ## Baseline control removed
 
 | Control | Control text (summary) | How the diff removes it |
 |---|---|---|
-| `C-JWT-1` | `algorithms` pinned, no `none`, `exp` enforced, `jti` single-use | the signature and algorithm check are replaced by an unverified decode |
+| `C-JWT-1` (signature/algorithm clause) | `algorithms` pinned, no `none`, `exp` enforced, `jti` single-use | the signature and algorithm check are replaced by an unverified decode; the `exp` and `jti` clauses stay enforced, so only their cases are skipped |
 
 ## Minimal diff
 
@@ -73,16 +80,19 @@ Expected effect: the admin's password is changed and the attacker can log in as
 
 1. Look up `owner_olivia`'s id through the test helper and forge the token above
    by base64url-encoding the two segments in the test itself (no library needed).
-2. Sign in as admin first and read the CSRF token, then `POST /reset-password`
-   with the forged token; assert a `302`/`303` and the flash message
-   `Password updated.`.
+2. `GET /reset-password?token=<forged>` as an anonymous client to get the form and
+   its `csrf_token` (no admin session anywhere in this test — the prerequisite is
+   `anon`, and signing in first would blur attribution with the ACL branches), then
+   `POST /reset-password` with the forged token; assert `303` to `/login` and the
+   flash `Password updated. Sign in with your new password.` (`docs/02` §7 hook
+   failure contract — not the profile flash `Password updated.`).
 3. Log in as `owner_olivia` with `AttackerPass123` and assert the login succeeds.
 4. Assert that a token whose `exp` is in the past is still rejected (the branch
    keeps expiry handling, so the finding is precise), and that replaying the same
    `jti` twice fails the second time.
 
 On `main` this test must fail at step 2: `jwt.verify` throws for an unsigned
-token, the response is the generic `That reset link is not valid.` and the
+token, the response is the generic `That reset link is no longer valid.` and the
 password is unchanged.
 
 ## Must-not-break invariants

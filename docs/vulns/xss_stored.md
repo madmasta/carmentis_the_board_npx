@@ -89,7 +89,8 @@ probe test must pass.
 
 - The 25 markup unit tests that are not escaping-order tests stay green: nesting,
   case-insensitivity, `[url]`/`[img]` handling, `plain()`, truncation and the
-  bounded-work case.
+  bounded-work case. Only the cases carrying the `c-xss-1` slug in
+  `test/unit/markup.test.mjs` are skipped; the file is never skipped wholesale.
 - `isSafeUrl` scheme rejection remains enforced (step 5).
 - CSP remains on the response (`C-XSS-3` is not skipped), so the finding is the
   renderer, and the payload must therefore be an inline-handler element that a

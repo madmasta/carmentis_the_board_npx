@@ -81,8 +81,9 @@ the `.env` probe returns database credentials when a `.env` exists on disk.
 5. Assert that a legitimate attachment download by stored name still works and that
    a name belonging to another user is still refused through `GET /avatar/:id`.
 
-On `main` steps 2–4 must fail: the pattern check rejects `..` with `400 Invalid
-attachment name`, and no repository file is ever served.
+On `main` steps 2–4 must fail: the containment check answers `404` with the
+not-found view — the status pinned for this route in the `docs/02` §7 hook failure
+contract, not a new `400` string — and no repository file is ever served.
 
 ## Must-not-break invariants
 
@@ -91,7 +92,14 @@ attachment name`, and no repository file is ever served.
   (magic bytes, size cap, random name) remain enforced and asserted by
   `test/unit/hook-upload.test.mjs`.
 - The static allowlist stays closed: `/.git/config` and `/var/` remain `404`.
-- Only `C-UPLOAD-1` (read-side clause) and `C-INFO-2` are skipped.
+- The probe set deliberately stops at the schema, `.env` and OS files. Probing
+  `../../var/secret.key` would also read the JWT signing secret and drag `C-JWT-1`
+  into this branch's declarations, blurring it against
+  `vuln/cryptographic_failures`; the read primitive is already proven twice over, so
+  this sheet must not fetch that path.
+- Only the case slugs belonging to `C-UPLOAD-1`'s read-side clause and `C-INFO-2`
+  are skipped (`docs/03` skip granularity); every other case in
+  `test/unit/hook-upload.test.mjs` and `test/integration/static.test.mjs` runs.
 
 ## Fidelity to the PHP branch
 

@@ -42,15 +42,20 @@ await execute(
 );
 ```
 
-Column names come from a fixed map, so `C-SQL-1` stays intact; the defect is that
-the *set of columns* is chosen by the client. Keys outside the map are silently
+Column names come from a fixed map, and the code stays in
+`src/http/profile.controller.js`, which is outside the three places `C-SQL-1`'s
+source scan covers (`src/repositories/`, `src/session/store.js`, `src/hooks/`), so
+`C-SQL-1` stays enforced and is **not** declared here. If the generic patch builder
+were moved into `src/repositories/user.repository.js#update`, the same diff would
+also trip that scan and the sheet would have to declare `C-SQL-1` too. The defect is
+that the *set of columns* is chosen by the client; keys outside the map are silently
 dropped, which is also why the finding needs a mapped column such as `role`.
 
 ## Baseline control removed
 
 | Control | Control text (summary) | How the diff removes it |
 |---|---|---|
-| `C-ASSIGN-1` | Per-route field allowlist with casts; unknown keys dropped; dangerous keys rejected | the allowlist is replaced by a spread of the whole body |
+| `C-ASSIGN-1` (field-allowlist clause) | Per-route field allowlist with casts; unknown keys dropped; dangerous keys rejected | the allowlist is replaced by a spread of the whole body, so any mapped column can be set |
 
 ## Minimal diff
 
@@ -98,8 +103,11 @@ step 4 must be `403`.
   branch touches only the profile update path, and the control assertion for those
   routes stays green.
 - Prototype-key rejection remains (step 5), so the router and body parser stay
-  healthy for every other route.
-- `test/security/baseline-inert.test.mjs` passes; only `C-ASSIGN-1` is skipped.
+  healthy for every other route. That is why only the field-allowlist cases of
+  `C-ASSIGN-1` are skipped: the `__proto__`/`constructor` cases in
+  `test/unit/request.test.mjs` and `controls.test.mjs#c-assign-1` keep running and
+  must stay green.
+- `test/security/baseline-inert.test.mjs` passes; no other control is touched.
 
 ## Fidelity to the PHP branch
 

@@ -8,9 +8,9 @@
 
 ## Class and CWE
 
-Security misconfiguration — CWE-16, with CWE-215 (verbose errors) and CWE-219
-(storage of code with debug/exposed endpoints). Family: configuration and supply
-chain.
+Security misconfiguration — CWE-16, with CWE-215 (information exposure through an
+error message). Family: configuration. The catalog row lists the same two IDs; a
+third label would double-count the verbose-error evidence.
 
 ## Intent
 
@@ -56,8 +56,13 @@ Files touched:
 
 - `config/defaults.js` — the three default values above.
 - `.env.example` — `APP_DEBUG=1`, `LOGIN_THROTTLE_DISABLED=1`, `HOST=0.0.0.0`.
-- `src/http/server.js` — directory-listing branch for `/assets/` and the
-  `/server-info` route.
+- `src/http/server.js` — the directory-listing branch for `/assets/` and the
+  handler for `/server-info`.
+- `src/routes.js` — register `{ method: 'GET', path: '/server-info', guard: 'anon',
+  handler: diagnostics.serverInfo }`. Registration is not optional: `C-ACL-4` makes
+  the router refuse to start for any handler reached without a guard entry, so a
+  diff that only touches `server.js` yields an unreachable route and the exploit
+  test cannot pass.
 - `test/vulns/security_misconfig.test.mjs` — new file.
 
 ## Payload sketch
@@ -66,8 +71,13 @@ Files touched:
 GET /server-info
 GET /assets/
 POST /login      (30 wrong passwords in 2 minutes, all answered "Invalid email or password.")
-GET /thread/999999        (stack frames in the body because APP_DEBUG defaults to 1)
-```
+``` plus the fault probe below.
+
+The verbose-error half is probed through the deterministic seam `docs/01` §5
+defines: the test arms `src/lib/faults.js#setTestFault(() => new Error('probe'))`
+and issues an ordinary `GET /` request. `GET /thread/999999` is **not** a usable
+probe — that route answers `404` for a missing thread on every branch, so it would
+show a generic page on both sides.
 
 Expected effect: unlimited password guessing, an inventory of the runtime, a file
 listing, and traces by default — with no application code path altered.
@@ -76,8 +86,10 @@ listing, and traces by default — with no application code path altered.
 
 `test/vulns/security_misconfig.test.mjs`:
 
-1. Run the test with **no** `.env` values for the three keys (the helper deletes
-   them from the environment) so the shipped defaults decide.
+1. `helpers/env.mjs#clearKeys(['APP_DEBUG', 'LOGIN_THROTTLE_DISABLED', 'HOST'])`
+   for this case only (`docs/04` §2), so the shipped defaults in
+   `config/defaults.js` are what the app actually runs with, on `main` as well as
+   on the branch.
 2. `GET /server-info` returns `200` with `process.version` and
    `process.platform`.
 3. `GET /assets/` returns a listing containing `app.js` and `style.css`.
@@ -87,23 +99,28 @@ listing, and traces by default — with no application code path altered.
    `var/log/app.log` carries the `[SECURITY] login throttle BYPASSED` lines — the
    guards still announce themselves, which is the point: the configuration is what
    is wrong.
-5. `GET /thread/999999` and assert the 500 page contains stack frames with no
-   query parameter required.
+5. Arm `setTestFault`, `GET /`, and assert the 500 body contains a stack frame and
+   the fault name — with no query parameter or special route required. Then
+   `setTestFault(null)`.
+6. Restore `APP_DEBUG=0`, `LOGIN_THROTTLE_DISABLED=0` and `HOST=127.0.0.1` into the
+   environment and assert the throttle fires and the armed fault renders the generic
+   500 view again.
 
-On `main` this test must fail at every step: `/server-info` is `404`, `/assets/` is
-`404`, the tenth wrong password returns the throttled flash, and the 500 page is
-generic.
+On `main` this test must fail at steps 2-5: `/server-info` is `404`, `/assets/` is
+`404`, the tenth wrong password returns the throttled flash with no banner, and the
+same armed fault renders the generic 500 view. Step 6 (restoring the keys) behaves
+the same on both sides.
 
 ## Must-not-break invariants
 
 - The kill switch's four guards must all still fire (step 4 asserts the banner and
   the log line), so the branch is a configuration change, not a removal of the
   guard logic.
-- Setting `APP_DEBUG=0` and `LOGIN_THROTTLE_DISABLED=0` in the environment restores
-  the secure behaviour — assert it as a final step, because "it can be turned off"
-  is what makes this a misconfiguration rather than a logic defect.
-- The rest of `test/unit/logging.test.mjs` and `test/integration/static.test.mjs`
-  stay green apart from the two skipped controls.
+- Step 6 above is what makes this a misconfiguration rather than a logic defect:
+  the secure behaviour is one environment key away, and the branch proves it.
+- Cases in `test/unit/logging.test.mjs` and `test/integration/static.test.mjs` that
+  do not carry the `c-info-1`, `c-info-2` or `c-auth-3` slugs stay green; only those
+  slugs' cases are skipped.
 - `test/security/baseline-inert.test.mjs` passes; `C-AUTH-3`, `C-INFO-1` and
   `C-INFO-2` are skipped only for their default-value clauses.
 
@@ -129,5 +146,5 @@ test and the scanner will both measure the restored secure defaults.
 - [ ] `test/vulns/security_misconfig.test.mjs` passes on the branch.
 - [ ] The same test fails when run from a `main` worktree.
 - [ ] `npm run verify:branch` green.
-- [ ] One commit off `main`; diff touches only the four listed files.
+- [ ] One commit off `main`; diff touches only the five listed files.
 - [ ] Commit message: `vuln: security_misconfig — ship debug, throttle-off and exposed diagnostics as the defaults`.

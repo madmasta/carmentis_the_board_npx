@@ -9,6 +9,24 @@ Format: **ID**, requirement, where it lives, and the test that pins it. All
 proof tests live in `test/security/controls.test.mjs` unless another file is
 named.
 
+**Skip granularity.** A proof file may pin several controls, and a branch may
+downgrade one clause of a control while the rest of that control still holds. A
+control is therefore skippable at *case* level: every test case that pins a
+control carries the control slug in its name (`c-sql-1 rejects an interpolated
+where fragment`), and a branch that declares `C-SQL-1` skips only the cases whose
+name contains `c-sql-1`. Cases in the same file that carry a different slug always
+run. A sheet whose diff leaves part of a control enforced says so in its table
+("…clause"), and only the named clause's cases are skipped.
+
+**Clause ownership, to keep sibling branches separable:** `C-MFA-1` owns the OTP
+*lifecycle semantics* (issue, TTL, attempt cap, invalidation on re-issue, resend
+throttle); `C-RACE-1` owns *single-use under concurrency* — when a branch breaks
+the one-shot property by removing the lock, it declares `C-RACE-1`, not `C-MFA-1`.
+`C-XSS-3` owns the CSP header itself; the inert-render probe
+`test/security/baseline-inert.test.mjs` is a separate gate (`docs/04` §8), not a
+proof case of `C-XSS-3`, so an XSS-family branch may fail that gate without
+declaring the CSP control.
+
 ## SQL / data layer
 
 **C-SQL-1 — Prepared statements only.**
@@ -16,19 +34,31 @@ Every SQL string is a literal with `?` placeholders; no user-controlled text is
 ever concatenated or template-interpolated into SQL. Identifier lists come from
 fixed allowlists.
 *Location:* every file in `src/repositories/`, `src/session/store.js`, `src/hooks/`.
-*Proof:* `test/security/controls.test.mjs#c-sql-1` greps `src/` for SQL built by
-`+` or `${` inside `query(`/`execute(` and fails on a match.
+*Proof:* `test/security/controls.test.mjs#c-sql-1` — (a) a source scan that fails
+on any `+` or `${` used to build a SQL fragment anywhere under
+`src/repositories/`, `src/session/store.js` or `src/hooks/`, including fragments
+assembled into a variable before the call, and (b) behavioural probes: the seeded
+payloads (`' OR 1=1-- -`, `%' OR 1=1-- -`) must not change any repository result.
+Both halves are needed: a scan alone is bypassable by moving the interpolation
+into a local variable, and a behavioural probe alone would not catch SQL built
+from an identifier list.
 
 **C-SQL-2 — Driver hardening.**
-`mysql2` pool with `multipleStatements: false`, named placeholders not used,
-`connectTimeout` set, errors mapped to the generic 500 view.
+`mysql2` pool created with `multipleStatements: false` written **explicitly** (the
+library's own default is already `false`, so an option that is merely absent proves
+nothing), named placeholders not used, `connectTimeout` set, errors mapped to the
+generic 500 view. `connection.query(sql, params)` uses `conn.query` (client-side
+binding), which is what makes stacked statements possible at all once the flag is
+flipped — `conn.execute` would mask the class behind a server-side prepare error.
 *Location:* `src/db/connection.js`.
-*Proof:* `test/unit/db-connection.test.mjs`.
+*Proof:* `test/unit/db-connection.test.mjs#c-sql-2` asserts the literal option is
+present in the pool config and that a two-statement `query()` throws.
 
-**C-RACE-1 — One-shot invariants run under a lock.**
+**C-RACE-1 — One-shot invariants hold under concurrency.**
 Any check-then-act on a single-use resource (OTP consume, vote toggle, snapshot
 restore, upload quota) executes inside `transaction()` with `SELECT … FOR UPDATE`
-on the governing row.
+on the governing row, so simultaneous requests cannot both win. This control, not
+`C-MFA-1`, is the one a branch declares when it removes the lock.
 *Location:* `src/security/mfa.js`, `src/repositories/vote.repository.js`, `src/hooks/snapshot.js`.
 *Proof:* `test/integration/race-baseline.test.mjs` (20 parallel requests keep the invariant).
 
@@ -51,7 +81,10 @@ Sent on every response:
 `default-src 'self'; img-src * data:; style-src 'self'; script-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'; object-src 'none'`.
 No inline script or inline handler attributes anywhere in the rendered HTML.
 *Location:* `src/security/headers-policy.js`.
-*Proof:* `test/security/controls.test.mjs#c-xss-3` (header present on `/`, `/login`, `/thread/1`) and `test/security/baseline-inert.test.mjs` asserts no `onclick=`/`onerror=` in rendered fixture output.
+*Proof:* `test/security/controls.test.mjs#c-xss-3` — the header is present with
+that exact policy on `/`, `/login` and `/thread/1`. The inert-render probe
+(`test/security/baseline-inert.test.mjs`) is the separate gate described in
+`docs/04` §8.
 
 **C-XSS-4 — URL scheme allowlist.**
 A URL is accepted only when its scheme is `http`/`https`, it has a host, and it
@@ -73,7 +106,8 @@ request data. User text is passed as a variable only.
 session-scoped lifetime; ids from `crypto.randomBytes(16)`; unknown ids are never
 adopted.
 *Location:* `src/session/store.js`, `src/http/headers.js`.
-*Proof:* `test/integration/session.test.mjs`.
+*Proof:* `test/integration/session.test.mjs#c-sess-1` (cookie attributes and id
+entropy; the cases carrying `c-sess-2` in the same file are separate cases).
 
 **C-SESS-2 — Regeneration and store hygiene.**
 Id regenerated on login, MFA completion, privilege change and clear; old row
@@ -159,7 +193,11 @@ A per-route field allowlist with explicit casts; unknown fields dropped; keys
 `__proto__`, `constructor`, `prototype` rejected before assignment; no
 `Object.assign(req.body, …)` onto models or sessions.
 *Location:* `src/http/request.js`, per-controller `readInput()` helpers.
-*Proof:* `test/unit/request.test.mjs` + `test/security/controls.test.mjs#c-assign-1`.
+*Proof:* `test/unit/request.test.mjs#c-assign-1` (prototype-key rejection and
+unknown-field dropping) + `test/security/controls.test.mjs#c-assign-1` (no
+`Object.assign` of a body onto a model or session). A branch that widens one
+route's field allowlist while keeping prototype-key rejection declares
+`C-ASSIGN-1 (field allowlist clause)` and skips only the allowlist cases.
 
 ## Headers and redirects
 
@@ -292,11 +330,18 @@ signature secret never echoed to a client.
 `var/log/app.log`; error views never echo request data; the throttle banner is
 the only environment banner.
 *Location:* `src/server.js` error path, `templates/error.njk`.
-*Proof:* `test/integration/error-handling.test.mjs`.
+*Proof:* `test/integration/error-handling.test.mjs#c-info-1`, which arms
+`src/lib/faults.js#setTestFault` to raise a known error and asserts the response is
+the generic 500 view with no stack frame, while the trace appears in
+`var/log/app.log`; a second case asserts no fault is armed in a normal run. A
+branch that flips the `APP_DEBUG` default keeps the same fault probe and asserts
+the frames are now rendered.
 
 **C-INFO-2 — No filesystem exposure.**
-Only `/assets/*` and `/avatar/:id` are served; there is no static directory
-handler, no `/.git`, no `/uploads`, no directory listing, no source-map route.
+The only URL-reachable file reads are `/assets/*` (a fixed file list), the
+controller routes `/avatar/:id` and `/attachment?file=` with the containment check
+applied, and nothing else: no static directory handler, no `/.git`, no `/uploads`,
+no directory listing, no source-map route, and no path read outside the allowlist.
 *Location:* `src/http/server.js`.
 *Proof:* `test/integration/static.test.mjs` (404 for `/../schema.sql`,
 `/.git/config`, `/var/`, `/uploads/x.png`).

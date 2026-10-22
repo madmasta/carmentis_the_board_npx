@@ -134,7 +134,7 @@ export function bool(key, fallback): boolean
 export function list(key): string[]
 
 // src/db/connection.js
-export function query(sql, params = []): Promise<Row[]>          // prepared, never interpolated
+export function query(sql, params = []): Promise<Row[]>  // conn.query (client-side binding), placeholders only, never interpolated
 export function execute(sql, params = []): Promise<{insertId, affectedRows}>
 export function transaction(fn): Promise<T>                       // BEGIN/COMMIT/ROLLBACK
 export function forUpdate(sql, params): Promise<Row>              // SELECT ... FOR UPDATE
@@ -161,6 +161,12 @@ export async function attemptLogin(email, password, ip): Promise<
 export function render(res, template, vars): void                 // autoescape on, no |safe on user data
 export function notFound(res): void
 export function forbidden(res, message?): void
+
+// src/lib/faults.js
+export function setTestFault(fnOrNull): void   // the pipeline rethrows fn() on the
+//   next request. Deterministic way to exercise the 500 path without inventing a
+//   buggy handler. Test-only: controls.test.mjs#c-info-1 asserts no fault is armed
+//   during a normal run, and the setter is never called from src/ outside tests.
 
 // src/lib/clock.js
 export function now(): Date

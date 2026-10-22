@@ -8,7 +8,10 @@
 
 ## Class and CWE
 
-Session fixation with insufficient session regeneration — CWE-384, CWE-330.
+Session fixation with insufficient session regeneration — CWE-384. CWE-330 is
+**not** claimed here: the id itself stays a CSPRNG value, and the weak-randomness
+label belongs to `vuln/cryptographic_failures`. What this branch does is accept an
+id the client chose.
 Family: authentication.
 
 ## Intent
@@ -38,7 +41,7 @@ parameter when no cookie is present (the shared-link convenience path).
 | Control | Control text (summary) | How the diff removes it |
 |---|---|---|
 | `C-SESS-2` | Id regenerated on login and privilege change; old row deleted | `regenerate` keeps the id and only touches the expiry |
-| `C-SESS-1` | Ids from a CSPRNG, never adopted from an untrusted source | `sid` from the query string is adopted as the session id |
+| `C-SESS-1` (never-adopted clause) | Ids from a CSPRNG, never adopted from an untrusted source | `sid` from the query string is adopted as the session id; the id-generation clause stays intact |
 
 ## Minimal diff
 
@@ -90,8 +93,15 @@ On `main` step 3 must fail: `regenerate` issues a different id, the `id0` row ke
 - Cookie flags remain `HttpOnly`/`SameSite=Lax` — the finding is regeneration and
   id provenance, not flags; `test/integration/session.test.mjs` flags assertions
   stay green.
-- `test/security/controls.test.mjs` skips exactly `C-SESS-1` and `C-SESS-2`;
-  `C-SESS-3` (mid-session ban kill) stays enforced and is asserted here.
+- Only the `c-sess-1` and `c-sess-2` cases in
+  `test/integration/session.test.mjs` are skipped; the cookie-attribute cases and
+  everything under `c-sess-3` (mid-session ban kill) and `c-sess-4` still run, so
+  the shared file is never skipped wholesale.
+- The request logger records the **matched route template**, never the raw request
+  target, so a fixated id carried in `?sid=` still never reaches
+  `var/log/app.log` — assert that here. `C-INFO-3` therefore stays enforced on this
+  branch; if a future diff made the logger record raw targets, `C-INFO-3` would have
+  to be declared here instead.
 
 ## Fidelity to the PHP branch
 
