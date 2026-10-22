@@ -25,12 +25,18 @@ before the run. The Node equivalent (`test/helpers/db.mjs`):
    database is never touched.
 3. Drop + create, apply `schema.sql` statement by statement with
    `FOREIGN_KEY_CHECKS = 0` during application, restore afterwards.
-4. `test/helpers/fixtures.mjs` seeds the persona/board/post/vote fixture of
+4. `test/helpers/db.mjs` exposes `query(sql, params)`, `rows`, `row` and `count`
+   against the test database with **no repository layer and no field filtering**,
+   so an exploit test can read columns the application never renders (for example
+   `users.password_hash`) as the oracle for a data-leak assertion.
+5. `test/helpers/fixtures.mjs` seeds the persona/board/post/vote fixture of
    `docs/02` §6 in a transaction, so integration tests start from the seeded
    state, and `test/helpers/http.mjs` exposes `loginAs(agent, user)` that walks
    the real login form (with CSRF) so integration tests exercise the same path a
-   browser does.
-5. Test env forces `APP_DEBUG=0`, `MAIL_DRIVER=log`, `LOGIN_THROTTLE_DISABLED=0`,
+   browser does, plus `csrfToken(agent, path)` that returns the `csrf_token` value
+   rendered for the signed-in session. No seeded persona has MFA enabled, so
+   `loginAs` never needs an OTP unless the test turned it on first.
+6. Test env forces `APP_DEBUG=0`, `MAIL_DRIVER=log`, `LOGIN_THROTTLE_DISABLED=0`,
    `ADMIN_EMAILS=root-admin@test.example`, matching `phpunit.xml`.
 
 Tests that need the throttle disabled or an expired OTP drive time through
@@ -93,6 +99,21 @@ sheet that lists a control which is still enforced also fails. That keeps the
 baseline suite green on a branch while making the downgrade explicit and
 auditable.
 
+Two extensions of that rule, both mandatory:
+
+- **The mapping is not limited to `controls.test.mjs`.** Each control's
+  `*Proof:*` line in `docs/03-security-baseline.md` is the authoritative
+  control-to-test-file
+  mapping. The harness resolves the skipped IDs to those named files — which may
+  be unit or integration tests such as `test/unit/db-connection.test.mjs` or
+  `test/integration/static.test.mjs` — and skips exactly those tests and no
+  others. A branch that breaks a mapped test it did not declare fails the gate.
+- **Side-effect breakage must be declared.** If a minimal diff also disables a
+  control beyond the primary one (an upload branch that opens a new static path
+  also breaks `C-INFO-2`, for instance), the sheet lists that control in its
+  "Baseline control removed" table with the reason. Undeclared side effects are a
+  spec bug: fix the sheet, never the test.
+
 ## 7. Gate: `node tools/verify-all-branches.mjs`
 
 The M8 matrix builder. For each of the 35 slugs it:
@@ -125,7 +146,11 @@ checks alongside the branch's own test.
 
 - No outbound network in tests. `hooks/preview` takes an injectable resolver and
   fetcher; tests use a stub.
-- No wall-clock sleeps; use `src/lib/clock.js`.
+- The application never sleeps; time logic goes through `src/lib/clock.js`. A test
+  may use a timing threshold only where a sheet specifies one: the injected delay
+  must be at least 300 ms, the asserted threshold at most a third of it, and the
+  sheet must name a non-timing assertion as well, so the finding stays provable on
+  a loaded machine.
 - No test writes to `public/`; the app's test upload directory is
   `var/uploads-test/`. The single exception is `vuln/file_upload`'s exploit test,
   which asserts that `public/uploads/probe.html` was created by the branch and

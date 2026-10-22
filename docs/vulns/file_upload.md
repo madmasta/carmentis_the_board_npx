@@ -35,11 +35,16 @@ sends a fixed `Content-Type` from the stored row.
 The branch trusts the client:
 
 ```js
-const name = file.originalFilename;            // as submitted
+const name = file.filename;                    // the client-supplied name as submitted
 const dir  = 'public/uploads';
 await mkdir(dir, { recursive: true });
 await writeFile(join(dir, name), file.buffer);
 ```
+
+using the file-part shape `docs/01` §5 fixes
+(`{ field, filename, mimeType, size, buffer }`). `request.js` still strips path
+separators from `filename` on this branch, so the write stays inside the uploads
+directory and this sheet does not overlap `vuln/path_traversal`.
 
 and the static allowlist in `src/http/server.js` gains `/uploads/*`, served with
 the extension-derived type.
@@ -48,7 +53,14 @@ the extension-derived type.
 
 | Control | Control text (summary) | How the diff removes it |
 |---|---|---|
-| `C-UPLOAD-1` | Size, MIME and magic-byte allowlist; random name; storage outside the served root; served through a controller with a fixed content type | every clause is replaced by client-controlled name and type |
+| `C-UPLOAD-1` | Size, MIME and magic-byte allowlist; random name; storage outside the served root; served through a controller with a fixed content type | every validation clause except the size cap is replaced by client-controlled name and type |
+| `C-INFO-2` | The static allowlist is `/assets/*` only; nothing under `var/` or `public/uploads/` is reachable by URL, and there is no directory listing | `/uploads/*` is added to the allowlist, which is the clause `C-INFO-2` forbids |
+
+The second row is a declared side effect, not an accident: the exploit needs the
+stored file to be fetchable by URL, so the static rule must open. Under
+`docs/04` §6 the branch therefore declares both IDs, which skips the `C-UPLOAD-1`
+proofs in `test/security/controls.test.mjs` **and** the `C-INFO-2` proof in
+`test/integration/static.test.mjs`, and nothing else.
 
 ## Minimal diff
 
@@ -91,20 +103,28 @@ Expected effect: the file is stored under `public/uploads/` and served back as
    the body contains the marker script verbatim.
 4. Upload a `.png` whose first bytes are `GIF89a` and assert it is accepted
    despite the mismatched pair, proving the magic-byte check is gone.
-5. Upload a 3 MiB file and assert it is still rejected by the size cap, so the
-   finding is validation rather than capacity, and assert `probe.js` and
-   `probe.php` are accepted too (no extension list at all).
+5. Upload a 3 MiB file and assert `400` with `File is too large` — the cap lives in
+   `request.js` and must survive the downgrade, which proves the finding is
+   validation rather than capacity. Assert `probe.js` and `probe.php` are accepted
+   too (no extension list at all).
 6. Clean up `public/uploads/` in `afterAll`.
 
-On `main` step 1 must fail with `400 Unsupported file type` (not an image by
-magic byte), no file may be written under `public/`, and step 3 must be `404`.
+On `main` step 1 must fail with `400` and
+`Unsupported file type. Allowed: image/png, image/jpeg, image/gif, image/webp.`,
+no file may be written under `public/`, and step 3 must be `404`.
 
 ## Must-not-break invariants
 
 - A genuine PNG upload still works and is served at `GET /avatar/:id` with
   `Content-Type: image/png` and `X-Content-Type-Options: nosniff`
   (`test/unit/hook-upload.test.mjs` happy path stays green).
-- The 2 MiB cap remains (step 5).
+- The 2 MiB cap remains (step 5), and `C-HDR-1` still applies to every response:
+  step 3 asserts `X-Content-Type-Options: nosniff` is present on the served upload.
+- `C-XSS-3` is **not** skipped on this branch, so the served page keeps
+  `script-src 'self'` and a browser would block the inline marker. The proof is the
+  served `text/html` body and status, not script execution; step 3 asserts the CSP
+  header is still strict, which is what separates this branch from
+  `vuln/xss_config` and keeps the two findings distinct.
 - Other routes' static allowlist is unchanged: `/.git/config`, `/../schema.sql`
   and `/var/` must still be `404` — assert inside this test, because the diff
   touches the same allowlist.
@@ -125,7 +145,8 @@ pretending to code execution.
 
 Capture the multipart part with `filename="probe.html"` and `text/html`, the
 `303`, and the `GET /uploads/probe.html` response with `Content-Type: text/html`
-and the marker body. Expected label: `CWE-434 / Unrestricted File Upload`.
+and the marker body, plus the `400 File is too large` response proving the size cap
+is the only surviving check. Expected label: `CWE-434 / Unrestricted File Upload`.
 False-negative watch-out: the upload needs a CSRF token and a session; and the
 proof requires a follow-up GET on the stored path, which many scanners only do if
 they parse the response for the new URL — here the URL is predictable from the
@@ -135,6 +156,6 @@ submitted filename, which is itself part of the finding.
 
 - [ ] `test/vulns/file_upload.test.mjs` passes on the branch.
 - [ ] The same test fails when run from a `main` worktree.
-- [ ] `npm run verify:branch` green.
+- [ ] `npm run verify:branch` green with exactly `C-UPLOAD-1` and `C-INFO-2` declared.
 - [ ] One commit off `main`; diff touches only the three listed files.
 - [ ] Commit message: `vuln: file_upload — trust the client filename and serve the uploads directory`.

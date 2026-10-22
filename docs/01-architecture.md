@@ -166,6 +166,19 @@ export function forbidden(res, message?): void
 export function now(): Date
 export function nowMs(): number
 export function setClockForTests(fnOrNull): void
+
+// src/http/request.js
+export async function parse(req): Promise<
+  { method, path, segments, query, cookies, fields, files }>
+//   every file part is exactly { field, filename, mimeType, size, buffer };
+//   filename has any path separators stripped, size === buffer.length.
+//   MAX_POST_BYTES caps the whole body (413 'Request body too large');
+//   MAX_UPLOAD_BYTES caps one file part (400 'File is too large') and is
+//   enforced here, before any handler runs. Type checks stay handler-side.
+
+// src/http/response.js
+export function redirect(res, location): void                   // always 303
+export function status(res, code, template, vars): void         // 400/403/404/409/413/500
 ```
 
 ## 6. Rendering

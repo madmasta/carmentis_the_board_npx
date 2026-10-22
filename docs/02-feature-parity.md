@@ -136,6 +136,10 @@ caps at 300 chars.
 `mfa_mia` (MFA on), `banned_bob` (banned, reason `Repeated spam in General (seeded test ban)`),
 `lurker_lena` (no posts/votes), `prolific_pete`, `troll_tom`.
 
+Only `mod_marcus` and `mfa_mia` have MFA enabled. Every vulnerability sheet signs
+in as a non-MFA persona unless its oracle states the OTP step, which then goes
+through `test/helpers/mailbox.mjs#lastCode(to)`.
+
 **Boards:** Announcements (open), General (open), Staff Room (restricted, grants
 to `insider` and `mfa`, `regular` granted then revoked), Vault (restricted, zero
 grants), Empty Board (open, no threads), Archive (open then soft-deleted, has one
@@ -168,12 +172,30 @@ downgrades exactly one control of one hook.
 | Avatar upload | `POST /profile/avatar`, `GET /avatar/:id`, `GET /attachment?file=` | 2 MiB cap; MIME + magic-byte allowlist (`png/jpeg/gif/webp`); extension allowlist; filename from `crypto.randomUUID()`; stored under `var/uploads/` outside `public/`; served by the controller with a fixed `Content-Type` and `Content-Disposition: inline`; no path built from user input | `C-UPLOAD-1`, `C-INFO-2` | `file_upload`, `path_traversal`, `security_misconfig` |
 | Link preview | `POST /preview` | single absolute http(s) URL; resolved address must be public (no loopback/RFC1918/link-local/metadata); redirects disabled; 5 s timeout; 64 KiB read cap; only `<title>` and `meta[name=description]` text extracted, always escaped | `C-SSRF-1`, `C-XSS-2` | `ssrf`, `xss_reflected` (preview echo) |
 | XML thread import/export | `GET /board/:id/export.xml`, `POST /board/:id/import` | in-house reader: UTF-8, 64 KiB cap, depth ≤ 20, entity expansion limited to internal, `DOCTYPE` with `SYSTEM`/`PUBLIC` rejected; imported text goes through `markup.js` | `C-XML-1`, `C-XSS-1`, `C-SSTI-1` | `xxe`, `ssti`, `insecure_deserialization` |
-| Staff directory | `GET /directory?q=&role=` | searches `users` by exact token match; each filter token parsed by a tokenizer into `{field, op, value}` and bound as a parameter; a value that is not a string is rejected before the query | `C-DIR-1`, `C-DIR-2`, `C-SQL-1` | `ldap_injection`, `nosql_injection`, `idor` |
+| Staff directory | `GET /directory?q=&role=` | searches `users` through `hooks/directory.js#buildFilter` and `#matchDoc`; each filter token is parsed by a tokenizer into `{field, op, value}` and bound as a parameter; a value that is not a primitive string is rejected before the query | `C-DIR-1`, `C-DIR-2`, `C-SQL-1` | `ldap_injection`, `nosql_injection`, `idor` |
 | Saved XPath search | `POST /directory/search` | query compiled from a parameterized AST (`field`, `op`, `value` nodes) into XPath and evaluated with `xpath` against the in-memory export document; user input never concatenated into the expression, and filter values must be primitives | `C-XPATH-1`, `C-DIR-2` | `xpath_injection` |
 | Board snapshot restore | `GET /admin/boards/:id/snapshot.json`, `POST /admin/boards/:id/restore` | snapshot is plain JSON; restore validated against an explicit field schema, `type` tags whitelisted, no reviver, no dynamic dispatch, restore runs in one transaction | `C-JSON-1`, `C-RACE-1` | `insecure_deserialization`, `race_condition` |
 | Thread export | `GET /thread/:id/export?format=md\|txt` | formatter runs in-process; `format` from a fixed allowlist; no shell invocation at all on `main`, and any future external binary uses `execFile` with an argument array | `C-CMD-1` | `command_injection` |
 | Password reset + remember-me | `GET/POST /forgot-password`, `POST /reset-password`, `POST /login` (remember checkbox) | `jsonwebtoken` with `algorithms: ['HS256']` pinned; secret from `JWT_SECRET` (32 random bytes, generated on first boot into `var/secret.key` if absent); expiry 15 min; `jti` recorded when consumed and any reuse rejected (single-use); reset URL built only from `APP_URL` | `C-JWT-1`, `C-CRYPTO-1` | `jwt_flaws`, `open_redirect`, `host_header_injection`, `cryptographic_failures` |
 | Session store | all authenticated routes | 128-bit random id, `sessions` table, expiry sweep each request batch, no payload in the cookie | `C-SESS-1`, `C-SESS-2` | `session_management`, `sqli`, `idor` |
+
+**Hook failure contract.** These statuses and strings are fixed here because the
+parity extractor cannot see them in the PHP target; hook tests and exploit tests
+assert them.
+
+| Hook action | Situation | Status | Message or flash |
+|---|---|---|---|
+| `POST /profile/avatar` | type not in the magic-byte/MIME allowlist | 400 | `Unsupported file type. Allowed: image/png, image/jpeg, image/gif, image/webp.` |
+| `POST /profile/avatar` | file part over `MAX_UPLOAD_BYTES` | 400 | `File is too large`, raised by `request.js` before the handler runs |
+| `POST /profile/avatar` | success | 303 to `/profile` | flash `Avatar updated.` |
+| `GET /avatar/:id` | user has no avatar | 404 | not-found view |
+| `GET /attachment?file=` | path outside the allowlist | 404 | not-found view |
+| `POST /preview` | scheme is not http(s), or the resolved address is blocked | 400 | `That is not a previewable address.` |
+| `POST /preview` | target unreachable or over the read cap | 200 | card reads `The link did not answer.` |
+| `POST /board/:id/import` | not the app's envelope, or over `MAX_IMPORT_BYTES` | 400 | `That file could not be imported.` |
+| `POST /admin/boards/:id/restore` | snapshot belongs to another board or schema version | 409 | `That snapshot does not fit this board.` |
+| `GET /thread/:id/export` | thread not visible to the requester | 404 | not-found view |
+| `POST /reset-password` | token invalid, expired or already used | 200 | `That reset link is no longer valid.` (no account enumeration) |
 
 `JWT_SECRET` is the single env key the hooks add; it is documented in
 `docs/07-port-deviations.md` as a Node-only key.
