@@ -1,0 +1,16 @@
+{% include "partials/header.njk" %}
+<h1>Two-factor verification</h1>
+<form method="post" action="/mfa" class="panel narrow">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <p>We sent a 6-digit verification code to <strong>{{ user.email }}</strong>.</p>
+    <label>Verification code
+        <input type="text" name="code" required maxlength="6" minlength="6"
+               inputmode="numeric" pattern="\d{6}" autocomplete="one-time-code" autofocus>
+    </label>
+    <button type="submit" class="btn btn-primary">Verify</button>
+</form>
+<form method="post" action="/mfa/resend" class="narrow resend-row">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="btn btn-link">Send a new code</button>
+</form>
+{% include "partials/footer.njk" %}

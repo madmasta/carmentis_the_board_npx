@@ -1,0 +1,26 @@
+services:
+  db:
+    image: mariadb:11
+    container_name: theboard-node-db
+    # The app writes UTC timestamps (src/lib/clock.js), so the server is pinned to
+    # UTC as well: NOW(), CURRENT_TIMESTAMP and the app's own values must agree or
+    # the throttle window and the OTP TTL drift by the host offset.
+    command:
+      - --default-time-zone=+00:00
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASS:-theboardroot}
+      MARIADB_DATABASE: ${DB_NAME:-theboard_node}
+      MARIADB_USER: ${DB_USER:-theboard}
+      MARIADB_PASSWORD: ${DB_PASS:-theboard}
+    ports:
+      - "3307:3306"
+    volumes:
+      - nodedata:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  nodedata:

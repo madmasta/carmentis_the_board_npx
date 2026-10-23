@@ -1,0 +1,255 @@
+/* The Board — single stylesheet */
+:root {
+    --bg: #f5f6f8;
+    --panel: #ffffff;
+    --text: #1c2430;
+    --muted: #6b7280;
+    --border: #d7dbe0;
+    --primary: #2458e6;
+    --primary-dark: #1c46b8;
+    --danger: #c0392b;
+    --success-bg: #e6f6ec;
+    --success-text: #1a7f45;
+    --error-bg: #fdecea;
+    --error-text: #b03a2e;
+    --info-bg: #e8f0fe;
+    --info-text: #1d4ed8;
+    --radius: 8px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.55;
+}
+
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+.site-header {
+    background: #16233f;
+    color: #fff;
+    padding: 0.5rem 0;
+}
+.nav {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 0 1rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.brand { color: #fff; font-weight: 700; font-size: 1.2rem; text-decoration: none; }
+.nav-links { display: flex; gap: 1rem; align-items: center; }
+.nav-links a { color: #cbd5e1; text-decoration: none; }
+.nav-links a:hover { color: #fff; }
+
+.container { max-width: 1000px; margin: 1.5rem auto; padding: 0 1rem; min-height: 60vh; }
+
+h1 { font-size: 1.6rem; }
+h2 { font-size: 1.1rem; margin-top: 0; }
+
+.muted { color: var(--muted); }
+.hint { color: var(--muted); font-size: 0.85rem; }
+.hint code { background: #eef1f4; padding: 1px 4px; border-radius: 3px; }
+
+/* Flash messages */
+.flash { padding: 0.6rem 1rem; border-radius: var(--radius); margin-bottom: 0.75rem; }
+.flash-success { background: var(--success-bg, #e6f6ec); color: var(--success-text); }
+.flash-error { background: var(--error-bg, #fdecea); color: var(--error-text, #b03a2e); }
+.flash-info { background: var(--info-bg, #eaf2fb); color: #1d4ed8; }
+
+/* Panels and forms */
+.panel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--panel-radius, 8px);
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
+}
+.narrow { max-width: 480px; }
+.stack { display: flex; flex-direction: column; gap: 0.75rem; }
+.stack label { display: flex; flex-direction: column; gap: 0.25rem; font-weight: 600; font-size: 0.9rem; }
+.form-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+.form-row label { flex: 1; }
+input[type="text"], input[type="email"], input[type="password"], input[type="number"],
+textarea, select {
+    width: 100%;
+    padding: 0.5rem 0.65rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font: inherit;
+}
+textarea { resize: vertical; }
+label.checkbox { display: flex; gap: 0.5rem; align-items: center; font-weight: 400; }
+small { color: var(--muted); }
+
+.btn {
+    display: inline-block;
+    padding: 0.45rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #fff;
+    color: var(--text);
+    font: inherit;
+    cursor: pointer;
+    text-decoration: none;
+}
+.btn:hover { background: #f0f2f5; }
+.btn-primary { background: var(--primary); border-color: var(--primary); color: #fff; }
+.btn-primary:hover { background: #1d47c0; }
+.btn-danger { background: var(--danger, #c0392b); color: #fff; border-color: var(--danger, #c0392b); }
+.btn-danger:hover { filter: brightness(0.92); }
+.btn-link { background: none; border: none; color: #1d4ed8; padding: 0; cursor: pointer; }
+.btn-link:hover { text-decoration: underline; }
+.btn-sm { padding: 0.25rem 0.6rem; font-size: 0.85rem; }
+.btn-row { display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
+.inline-form { display: inline; }
+.btn-danger-text { color: var(--danger, #c0392b); }
+
+/* Boards list */
+.board-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.75rem; }
+.board-card {
+    display: flex;
+    justify-content: space-between;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--panel-radius, 8px);
+    padding: 1rem 1.25rem;
+}
+.board-card h2 { margin: 0 0 0.25rem; font-size: 1.1rem; }
+.board-info h2 a { text-decoration: none; }
+.board-info h2 a:hover { text-decoration: underline; }
+.board-stats { display: flex; flex-direction: column; align-items: flex-end; gap: 0.25rem; color: var(--muted); font-size: 0.9rem; }
+
+.badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    padding: 1px 8px;
+    border-radius: 999px;
+    background: #eef1f5;
+    color: #475569;
+}
+.badge-admin { background: #dbeafe; color: #1e40af; }
+.badge-banned { background: #fee2e2; color: #b91c1c; }
+.badge-new { background: #dcfce7; color: #15803d; }
+.row-created { background: #f0fdf4; }
+.flash.persistent { box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+/* Threads */
+.thread-row, .post {
+    display: flex;
+    gap: 0.75rem;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--panel-radius, 8px);
+    padding: 1rem;
+    margin-bottom: 0.9rem;
+}
+.reply { margin-left: 2.5rem; }
+.thread-summary h3 { margin: 0 0 0.25rem; }
+.thread-teaser { color: var(--muted); margin: 0.25rem 0; font-size: 0.95rem; }
+.post-meta { color: var(--muted); font-size: 0.85rem; margin: 0.25rem 0; }
+.thread-teaser { color: var(--muted); margin: 0 0 0.25rem; }
+
+/* Voting */
+.vote-col { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 2.2rem; }
+.vote-form { margin: 0; line-height: 1; }
+.vote-btn {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 2px 8px;
+    cursor: pointer;
+    color: #9ca3af;
+    font-size: 0.85rem;
+    line-height: 1.4;
+}
+.vote-btn:hover { background: #eef2ff; }
+.vote-btn.active.up { color: var(--success, #1a7f45); font-weight: 700; }
+.vote-btn.active.down { color: var(--danger, #c0392b); font-weight: 700; }
+.score { font-weight: 700; font-size: 0.95rem; }
+.score.pos { color: var(--success, #1a7f45); }
+.score.neg { color: var(--danger, #c0392b); }
+
+.post-title { margin: 0 0 0.35rem; font-size: 1.25rem; }
+.post-content img.post-image { max-width: 100%; max-height: 480px; border-radius: 6px; }
+.post-content a { word-break: break-all; }
+.post-actions { margin-top: 0.5rem; display: flex; gap: 0.75rem; align-items: center; }
+
+/* Tables */
+.table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.table th, .table td { text-align: left; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+.table thead th { text-align: left; color: var(--muted); font-weight: 600; font-size: 0.85rem; }
+.row-banned td { background: #fdf2f2; }
+
+/* Misc */
+.muted { color: var(--muted); }
+.empty-state { color: var(--muted); font-style: italic; }
+.badge-banned { margin-left: 0.35rem; }
+.breadcrumb { color: var(--muted); font-size: 0.9rem; }
+.breadcrumb a { color: var(--primary); }
+.form-row { display: flex; gap: 1rem; flex-wrap: wrap; }
+.form-row label { flex: 1; min-width: 160px; }
+.inline-form { display: inline; }
+.btn-link { text-decoration: underline; }
+.btn-danger-text { color: var(--danger, #c0392b); }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+@media (max-width: 720px) { .grid-2 { grid-template-columns: 1fr; } }
+.kv { margin: 0; }
+.kv dt { font-weight: 600; font-size: 0.8rem; color: var(--muted); text-transform: uppercase; }
+.kv dd { margin: 0 0 0.6rem; }
+.search-row { display: flex; gap: 0.5rem; margin-bottom: 0.75rem; }
+.pagination { display: flex; gap: 0.4rem; margin: 1rem 0; }
+.pagination .current { font-weight: 700; }
+.flash-error { background: #fdecea; color: #b03a2e; }
+.flash-success { background: var(--success-bg, #e6f6ec); color: var(--success-text, #1a7f45); }
+.flash-info { background: #eaf2fb; color: #1d4ed8; }
+.row-banned { opacity: 0.65; }
+label.checkbox { font-weight: 400; }
+.panel.narrow { max-width: 480px; }
+.stack label { font-weight: 600; }
+.stack small { color: var(--muted); font-weight: 400; }
+
+/* Development kill-switch banner (see src/LoginThrottle.php).
+   Deliberately loud and impossible to mistake for normal chrome. */
+.danger-banner {
+    display: block;
+    padding: 1rem 1.25rem;
+    border-bottom: 6px solid #000;
+    font-size: 1rem;
+    line-height: 1.45;
+    text-align: center;
+    background: repeating-linear-gradient(
+        45deg,
+        #ffe14d, #ffe14d 18px,
+        #1c1c1c 18px, #1c1c1c 36px
+    );
+}
+.danger-banner-title {
+    display: block;
+    margin: 0 auto 0.5rem;
+    max-width: 62rem;
+    padding: 0.35rem 0.75rem;
+    background: #b00020;
+    color: #fff;
+    font-size: 1.35rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+}
+.danger-banner-text {
+    display: block;
+    margin: 0 auto;
+    max-width: 62rem;
+    padding: 0.55rem 0.9rem;
+    background: #fff;
+    color: #1c1c1c;
+    font-weight: 600;
+}
+/* The flag was set but refused: serious, but not an active hole. */
+.danger-banner-refused .danger-banner-title { background: #8a5300; }

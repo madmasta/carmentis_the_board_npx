@@ -1,0 +1,87 @@
+{% include "partials/header.njk" %}
+{% set mfaOn = profile_user.mfa_enabled | int == 1 %}
+<h1>My profile</h1>
+
+<div class="grid-2">
+    <section class="panel">
+        <h2>Account</h2>
+        <dl class="kv">
+            <dt>Username</dt><dd>{{ profile_user.username }}</dd>
+            <dt>Email</dt><dd>{{ profile_user.email }}</dd>
+            <dt>Role</dt><dd>{{ profile_user.role }}</dd>
+        </dl>
+    </section>
+
+    <section class="panel">
+        <h2>Multi-factor authentication (email)</h2>
+        <p class="muted">
+            {% if mfaOn %}
+            MFA is <strong>enabled</strong>. A one-time code is emailed at every login.
+            {% else %}
+            MFA is disabled. Enable it to require an emailed one-time code at every login.
+            {% endif %}
+        </p>
+        <form method="post" action="/profile" class="stack">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="mfa_enabled" value="{{ 0 if mfaOn else 1 }}">
+            <label>Confirm with your password
+                <input type="password" name="current_password" required maxlength="200">
+            </label>
+            <button type="submit" class="btn {{ 'btn-danger' if mfaOn else 'btn-primary' }}">
+                {{ 'Disable MFA' if mfaOn else 'Enable MFA' }}
+            </button>
+        </form>
+    </section>
+
+    <section class="panel">
+        <h2>Change password</h2>
+        <form method="post" action="/profile/password" class="stack">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <label>Current password
+                <input type="password" name="current_password" required maxlength="200">
+            </label>
+            <label>New password
+                <input type="password" name="new_password" required minlength="10" maxlength="200">
+            </label>
+            <label>Confirm new password
+                <input type="password" name="new_password_confirm" required maxlength="200">
+            </label>
+            <button type="submit" class="btn btn-primary">Update password</button>
+        </form>
+    </section>
+
+    <section class="panel">
+        <h2>Change email</h2>
+        <form method="post" action="/profile/email" class="stack">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <label>Current password
+                <input type="password" name="current_password" required maxlength="200">
+            </label>
+            <label>New email
+                <input type="email" name="new_email" required maxlength="254">
+            </label>
+            <button type="submit" class="btn btn-primary">Update email</button>
+        </form>
+    </section>
+</div>
+
+<section class="panel">
+    <h2>My messages</h2>
+    {% if posts | default([], true) | length == 0 %}
+        <p class="empty-state">You have not posted anything yet.</p>
+    {% else %}
+        <ul class="post-list">
+            {% for p in posts %}
+            <li>
+                {% if p.parent_id %}
+                <a href="/thread/{{ p.parent_id }}#post-{{ p.id }}">Reply in thread</a>
+                {% else %}
+                <a href="/thread/{{ p.id }}">{{ p.title }}</a>
+                {% endif %}
+                <span class="muted"> in {{ p.board_name }} · score {{ p.score }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    {% endif %}
+</section>
+{% include "partials/footer.njk" %}

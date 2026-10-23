@@ -1,0 +1,23 @@
+{% include "partials/header.njk" %}
+<h1>Create an account</h1>
+<form method="post" action="/register" class="panel narrow">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Username
+        <input type="text" name="username" required minlength="3" maxlength="30"
+               pattern="[A-Za-z0-9_-]+" value="{{ old.username | default('', true) }}">
+        <small>3–30 characters; letters, numbers, dash, underscore.</small>
+    </label>
+    <label>Email
+        <input type="email" name="email" required maxlength="254" value="{{ old.email | default('', true) }}">
+    </label>
+    <label>Password
+        <input type="password" name="password" required minlength="10" maxlength="200">
+        <small>At least 10 characters, with letters and numbers.</small>
+    </label>
+    <label>Confirm password
+        <input type="password" name="password_confirm" required maxlength="200">
+    </label>
+    <button type="submit" class="btn btn-primary">Register</button>
+    <p class="muted">Already registered? <a href="/login">Log in</a></p>
+</form>
+{% include "partials/footer.njk" %}

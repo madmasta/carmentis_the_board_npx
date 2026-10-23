@@ -1,0 +1,8 @@
+</main>
+<footer class="site-footer">
+    <p>{{ app_name() }} — a small message board.</p>
+</footer>
+{# CSP forbids inline script (C-XSS-3), so all client JS is this one external file #}
+<script src="/assets/app.js" defer></script>
+</body>
+</html>

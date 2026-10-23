@@ -7,6 +7,11 @@ except where a "parallelizable" note says otherwise.
 Ownership rules in `AGENTS.md` §3–4 apply throughout: one writer per worktree,
 touch only your milestone's files.
 
+**Working state.** `main` is frozen at the spec commit. M0–M2 are complete in the
+working tree (uncommitted) — the operator reviews and commits each milestone
+before the next one starts. `IMPLEMENTATION_NOTES.md` records every deviation and
+spec amendment found while building.
+
 ---
 
 ## M-SPEC — specification suite (this milestone, complete)
@@ -21,7 +26,7 @@ touch only your milestone's files.
 
 ---
 
-## M0 — scaffold
+## M0 — scaffold (complete, gate green)
 
 **Entry:** M-SPEC complete.
 
@@ -51,7 +56,7 @@ npm run verify:parity                              # inventories match the PHP t
 
 ---
 
-## M1 — core infrastructure
+## M1 — core infrastructure (complete, gate green)
 
 **Entry:** M0 gate green.
 
@@ -72,7 +77,7 @@ and `npm start` answers `GET /health` with `{"ok":true}` and the full header set
 
 ---
 
-## M2 — auth, throttle, MFA
+## M2 — auth, throttle, MFA (complete, gate green)
 
 **Entry:** M1 green.
 

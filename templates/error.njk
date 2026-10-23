@@ -1,0 +1,12 @@
+{% include "partials/header.njk" %}
+<div class="error-page">
+    <h1>{{ code }}</h1>
+    <p>{{ message }}</p>
+    {% if debug_trace %}
+    {# Only rendered when APP_DEBUG=1 (C-INFO-1). The trace is written to
+       var/log/app.log in every mode. #}
+    <pre class="debug-trace">{{ debug_trace }}</pre>
+    {% endif %}
+    <p><a class="btn" href="/">Back to boards</a></p>
+</div>
+{% include "partials/footer.njk" %}

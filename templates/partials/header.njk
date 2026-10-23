@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title | default(app_name(), true) }} · {{ app_name() }}</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+{% if throttle_title() %}
+<div class="danger-banner danger-banner-{{ throttle_status() }}" role="alert">
+    <strong class="danger-banner-title">&#9888; {{ throttle_title() }}</strong>
+    <span class="danger-banner-text">{{ throttle_text() }}</span>
+</div>
+{% endif %}
+<header class="site-header">
+    <nav class="nav">
+        <a class="brand" href="/">{{ app_name() }}</a>
+        <div class="nav-links">
+            {% if current_user %}
+                {% if is_admin %}
+                    <a href="/admin/boards">Admin</a>
+                {% endif %}
+                <a href="/">Boards</a>
+                <a href="/profile">{{ current_user.username }}</a>
+                <form method="post" action="/logout" class="inline-form">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                    <button type="submit" class="btn btn-link">Log out</button>
+                </form>
+            {% else %}
+                <a href="/login">Log in</a>
+                <a href="/register" class="btn btn-primary btn-sm">Register</a>
+            {% endif %}
+        </div>
+    </nav>
+</header>
+<main class="container">
+{% for flash in flash_messages | default([], true) %}
+    <div class="flash flash-{{ flash.type }}">{{ flash.message }}</div>
+{% endfor %}

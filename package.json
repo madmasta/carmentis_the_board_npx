@@ -1,0 +1,41 @@
+{
+  "name": "carmentis-the-board-node",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Node.js port of the carmentis_the_board message board (benchmark target with 35 vulnerability branches)",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:reset": "node scripts/reset.mjs",
+    "seed": "node scripts/seed-test-data.mjs",
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "vitest run",
+    "test:unit": "vitest run test/unit",
+    "test:integration": "vitest run test/integration",
+    "test:security": "vitest run test/security",
+    "test:vulns": "vitest run test/vulns",
+    "verify:parity": "node tools/extract-parity.mjs --check",
+    "verify:parity:tests": "node scripts/verify-parity-tests.mjs",
+    "verify:spec": "node tools/check-spec.mjs",
+    "verify:all": "node tools/extract-parity.mjs --check && node tools/check-spec.mjs && node scripts/verify-parity-tests.mjs && vitest run",
+    "verify:branch": "node scripts/verify-branch.mjs",
+    "verify:branches": "node tools/verify-all-branches.mjs"
+  },
+  "dependencies": {
+    "@xmldom/xmldom": "^0.9.8",
+    "bcryptjs": "^3.0.2",
+    "jsonwebtoken": "^9.0.2",
+    "mysql2": "^3.14.1",
+    "nunjucks": "^3.2.4",
+    "xpath": "^0.0.34"
+  },
+  "devDependencies": {
+    "supertest": "^7.2.2",
+    "vitest": "^3.2.4"
+  }
+}

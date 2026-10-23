@@ -1,5 +1,4 @@
 node_modules/
-var/
 .env
 .env.local
 *.log
@@ -13,3 +12,16 @@ Thumbs.db
 *.swp
 worktrees/
 wt-*/
+
+# Runtime state (logs, uploads, generated JWT secret) — keep the directory
+# placeholders so a fresh clone can start without mkdir dances.
+var/*
+!var/log/
+!var/uploads/
+var/log/*
+!var/log/.gitkeep
+var/uploads/*
+!var/uploads/.gitkeep
+
+# Local scratch probes (never committed): manual HTTP/DB drivers.
+scratch/

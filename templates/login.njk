@@ -1,0 +1,14 @@
+{% include "partials/header.njk" %}
+<h1>Log in</h1>
+<form method="post" action="/login" class="panel narrow">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Email
+        <input type="email" name="email" required maxlength="254" autofocus value="{{ email | default('', true) }}">
+    </label>
+    <label>Password
+        <input type="password" name="password" required maxlength="200">
+    </label>
+    <button type="submit" class="btn btn-primary">Log in</button>
+    <p class="muted">No account? <a href="/register">Register</a></p>
+</form>
+{% include "partials/footer.njk" %}
