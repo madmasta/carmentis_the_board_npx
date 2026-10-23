@@ -44,7 +44,7 @@ new fixture/test harness.
 | 22 | `vuln/security_misconfig` | CWE-16, CWE-215 | Insecure shipped defaults | app-wide, `/assets/`, `/server-info` | `C-INFO-1`, `C-INFO-2`, `C-AUTH-3` | `config/defaults.js`, `src/http/server.js` | M | [sheet](vulns/security_misconfig.md) |
 | 23 | `vuln/sensitive_data_exposure` | CWE-201, CWE-259 | Sensitive data in responses/logs | `GET /admin/users`, `GET /profile` | `C-DATA-1`, `C-INFO-3` | `src/repositories/user.repository.js#toPublic` | S | [sheet](vulns/sensitive_data_exposure.md) |
 | 24 | `vuln/session_management` | CWE-384 | Session fixation / id handling | `POST /login` (cookie) | `C-SESS-2`, `C-SESS-1` | `src/session/store.js#regenerate` | M | [sheet](vulns/session_management.md) |
-| 25 | `vuln/sqli` | CWE-89 | SQL injection | `GET /admin/users?q=`, `GET /directory?q=` | `C-SQL-1`, `C-SQL-2`, `C-DIR-1` | `src/repositories/user.repository.js#allUsers` | M | [sheet](vulns/sqli.md) |
+| 25 | `vuln/sqli` | CWE-89 | SQL injection | `GET /admin/users?q=`, `GET /directory?q=` | `C-SQL-1`, `C-SQL-2`, `C-SQL-3`, `C-DIR-1` | `src/repositories/user.repository.js#allUsers` | M | [sheet](vulns/sqli.md) |
 | 26 | `vuln/ssrf` | CWE-918 | Server-side request forgery | `POST /preview` (`url`) | `C-SSRF-1` | `src/hooks/preview.js#fetchTarget` | M | [sheet](vulns/ssrf.md) |
 | 27 | `vuln/ssti` | CWE-1336 | Server-side template injection | `POST /board/:id/import` (XML body text) | `C-SSTI-1` | `src/hooks/xml-import.js#renderText` | M | [sheet](vulns/ssti.md) |
 | 28 | `vuln/vulnerable_components` | CWE-1035, CWE-1104 | Known-vulnerable dependencies | `POST /reset-password` (`token`) | `C-DEP-1` | `package.json`, `package-lock.json` | S | [sheet](vulns/vulnerable_components.md) |

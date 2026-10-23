@@ -45,7 +45,13 @@ and `email` (`VARCHAR(255)`) — a bcrypt hash is 60 characters, so extracted ha
 go in the **email** slot, not the username slot.
 
 The branch concatenates the search term into the SQL text and passes no parameter
-array, and `src/db/connection.js` sets `multipleStatements: true` **explicitly** —
+array. That forces the `LIKE` metacharacter escape to go as well: `main` builds
+`'%' + escapeLike(search) + '%'` and binds it, and an interpolated version of the
+same expression is what the branch writes, without the escape. The payloads below
+depend on that — `password_hash`, `mod_marcus` and `default_access` all contain `_`,
+which the escape would turn into `\_` and break as an identifier — so the escape is
+dropped deliberately and declared as `C-SQL-3`, not lost silently in a parity test.
+`src/db/connection.js` sets `multipleStatements: true` **explicitly** —
 `mysql2` already defaults the flag to `false`, so an option that is merely absent
 would change nothing and `C-SQL-2` would be declared but still enforced. The
 interpolation must be written so the `C-SQL-1` scan sees it: the fragment is built
@@ -63,6 +69,7 @@ the same class. That projection has **5 columns**: `id`, `username`, `role`,
 |---|---|---|
 | `C-SQL-1` | Every statement goes through `connection.query(sql, params)` with `?` placeholders; user data never concatenates into SQL text | the `WHERE` fragment is built by string interpolation and the params array is dropped |
 | `C-SQL-2` | The pool is created with `multipleStatements: false` written explicitly | the option is set to `true`, so a statement separator executes |
+| `C-SQL-3` | Search terms are `LIKE`-escaped (`%`, `_`) and then bound | the interpolated fragment skips the escape, which is what lets `_`-bearing identifiers survive in the payload |
 
 Side effect the diff must declare, not hide: interpolating `q` in
 `hooks/directory.js#buildFilter` also breaks the directory token binding that
@@ -72,10 +79,13 @@ Side effect the diff must declare, not hide: interpolating `q` in
 |---|---|---|
 | `C-DIR-1` | Directory filter tokens are parsed into `{field, op, value}` and the value is bound as a parameter | `buildFilter` concatenates the raw token into the `where` fragment |
 
-Only the cases carrying the slugs `c-sql-1`, `c-sql-2` and `c-dir-1` are skipped
-(`docs/03` skip granularity): the `c-dir-2` cases in
+Only the cases carrying the slugs `c-sql-1`, `c-sql-2`, `c-sql-3` and `c-dir-1` are
+skipped (`docs/03` skip granularity): the `c-dir-2` cases in
 `test/unit/hook-directory.test.mjs` — non-primitive filter values rejected — still
-run and must stay green.
+run and must stay green, and so do the other repository cases in
+`test/unit/repository-users.test.mjs`; only `c-sql-3` (the PHP parity case
+`testAllUsersSearch`) is skipped, which is the honest expression of "this branch also
+removed `LIKE` escaping".
 
 ## Minimal diff
 
@@ -83,7 +93,8 @@ Files touched:
 
 - `src/db/connection.js` — change the pool option to `multipleStatements: true`.
 - `src/repositories/user.repository.js` — `allUsers(search)` builds the `WHERE`
-  fragment with template interpolation and calls `query(sql)` with no params.
+  fragment with template interpolation from the **unescaped** term and calls
+  `query(sql)` with no params, removing the `escapeLike()` call.
 - `src/hooks/directory.js` — `buildFilter` interpolates the `q` token.
 - `test/vulns/sqli.test.mjs` — new file.
 
@@ -150,14 +161,18 @@ bound parameter, so all three payloads are literal search text — step 3 render
 `All users (0)`, step 4 leaves `boards` at its seeded count, step 5 renders
 `All users (0)` for both probes, and step 6 filters on a token that matches no
 persona; the explicit `multipleStatements: false` pool rejects step 4's second
-statement even if the first half were interpolated. Step 7 (the guard) and step 8
-(the working search) behave identically on both sides by design.
+statement even if the first half were interpolated; and `c-sql-3` keeps `'`, `%` and
+`_` literal, which is why the same payloads are inert on `main`. Step 7 (the guard)
+and step 8 (the working search) behave identically on both sides by design.
 
 ## Must-not-break invariants
 
-- Step 8 (`q=regular` returns exactly the `regular_rita` row): parity tests for
-  search (`test/unit/repository-users.test.mjs`) may not fail on the branch — the
-  search box still filters, it just interpolates.
+- Step 8 (`q=regular` returns exactly the `regular_rita` row) still holds: the
+  search box keeps filtering, it just interpolates. The one parity case allowed to
+  fail is `c-sql-3`/`testAllUsersSearch`, and it is declared above.
+- Because `LIKE` escaping is gone, a plain `q=%` on the branch returns every row
+  (wildcard enumeration). That is a second symptom of the same declared control, not
+  a separate finding — assert it in the same test so the evidence is complete.
 - The rest of the baseline suite stays green; per `docs/04` §6 the branch declares
   `C-SQL-1`, `C-SQL-2` and `C-DIR-1`, which skips only the cases carrying those
   slugs — in `test/security/controls.test.mjs`, `test/unit/db-connection.test.mjs`
@@ -191,6 +206,6 @@ the hash either, because the leak is in the HTML table cell.
 
 - [ ] `test/vulns/sqli.test.mjs` passes on the branch.
 - [ ] The same test fails when run from a `main` worktree.
-- [ ] `npm run verify:branch` green with exactly `C-SQL-1`, `C-SQL-2`, `C-DIR-1` declared.
+- [ ] `npm run verify:branch` green with exactly `C-SQL-1`, `C-SQL-2`, `C-SQL-3` and `C-DIR-1` declared.
 - [ ] One commit off `main`; diff touches only the three listed source files.
 - [ ] Commit message: `vuln: sqli — build the staff search and directory filter from raw input`.

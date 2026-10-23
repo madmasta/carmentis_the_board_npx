@@ -54,7 +54,7 @@ the extension-derived type.
 | Control | Control text (summary) | How the diff removes it |
 |---|---|---|
 | `C-UPLOAD-1` | Size, MIME and magic-byte allowlist; random name; storage outside the served root; served through a controller with a fixed content type | every validation clause except the size cap is replaced by client-controlled name and type |
-| `C-INFO-2` | The static allowlist is `/assets/*` only; nothing under `var/` or `public/uploads/` is reachable by URL, and there is no directory listing | `/uploads/*` is added to the allowlist, which is the clause `C-INFO-2` forbids |
+| `C-INFO-2` (uploads-path clause) | The static allowlist is `/assets/*` plus the two controller routes; nothing under `var/` or `public/uploads/` is reachable by URL, and there is no directory listing | `/uploads/*` is added to the allowlist, which is the clause `C-INFO-2` forbids; the `/.git`, traversal and no-listing clauses stay enforced and their cases keep running |
 
 The second row is a declared side effect, not an accident: the exploit needs the
 stored file to be fetchable by URL, so the static rule must open. Under

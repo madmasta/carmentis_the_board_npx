@@ -46,9 +46,9 @@ and enables a directory listing for `/assets/`.
 
 | Control | Control text (summary) | How the diff removes it |
 |---|---|---|
-| `C-AUTH-3` | Throttle enforced; kill switch honoured only with `APP_DEBUG=1` and it announces itself | both defaults ship enabled, so brute forcing is unlimited by configuration |
-| `C-INFO-1` | Generic error page unless explicitly debugging | `APP_DEBUG` now defaults to `1`, so traces render by default |
-| `C-INFO-2` | Only allowlisted static paths served, no listing | `/assets/` lists files and `/server-info` exists |
+| `C-AUTH-3` (shipped-default clause) | Throttle enforced; kill switch honoured only with `APP_DEBUG=1` and it announces itself | both defaults ship enabled, so brute forcing is unlimited by configuration; the guard logic and its banner stay in place |
+| `C-INFO-1` (`APP_DEBUG` default clause) | Generic error page unless explicitly debugging | `APP_DEBUG` now defaults to `1`, so traces render by default; the trace-to-log behaviour is untouched |
+| `C-INFO-2` (listing and diagnostics clause) | Only allowlisted static paths served, no listing | `/assets/` lists files and `/server-info` exists; the `/.git`, `/uploads` and containment clauses stay enforced and their cases keep running |
 
 ## Minimal diff
 
@@ -107,9 +107,12 @@ listing, and traces by default — with no application code path altered.
    500 view again.
 
 On `main` this test must fail at steps 2-5: `/server-info` is `404`, `/assets/` is
-`404`, the tenth wrong password returns the throttled flash with no banner, and the
-same armed fault renders the generic 500 view. Step 6 (restoring the keys) behaves
-the same on both sides.
+`404`, the twelve attempts do **not** all get the generic flash — with
+`LOGIN_MAX_ATTEMPTS=5` and three failures already seeded for that address by the
+fixture (`docs/02` §6 invariant 9), the throttle trips partway through the loop —
+and the same armed fault renders the generic 500 view. Do not assert on a specific
+attempt index; assert that at least one attempt in the window is throttled. Step 6
+(restoring the keys) behaves the same on both sides.
 
 ## Must-not-break invariants
 

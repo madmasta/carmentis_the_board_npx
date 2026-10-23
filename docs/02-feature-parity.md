@@ -93,7 +93,7 @@ Order inside every handler: **CSRF → guard → object/board check → work**.
 | B26 | Admin boards | list all non-deleted with creator name and thread count; create validates name 1–100 and description ≤ 500 |
 | B27 | Board access admin UI | grant/revoke per user (`INSERT IGNORE` / `DELETE`), flash names the user |
 | B28 | Soft-deleted board | never in any listing; direct access is `404` |
-| B29 | Admin users | list with post counts, `?q=` search escapes `%` and `_`, `LIMIT 500`, `?created=<id>` shows the one-time password |
+| B29 | Admin users | list with post counts, `?q=` search escapes `%` and `_` (the control behind that escape is `C-SQL-3` in `docs/03`), `LIMIT 500`, `?created=<id>` shows the one-time password |
 | B30 | Add user | password optional → 16-hex random; flash `User "x" created. Initial password: <pw> (shown once — share it securely.)` |
 | B31 | Ban/unban | admins can never be banned (checked in controller **and** in the repository `WHERE role != 'admin'`); reason defaults to `Violated board rules`, truncated to 255 |
 | B32 | Reset password | 16-hex random, flash `New password for "x": <pw> (shown once)` |

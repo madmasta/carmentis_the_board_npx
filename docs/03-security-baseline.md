@@ -54,6 +54,18 @@ flipped — `conn.execute` would mask the class behind a server-side prepare err
 *Proof:* `test/unit/db-connection.test.mjs#c-sql-2` asserts the literal option is
 present in the pool config and that a two-statement `query()` throws.
 
+**C-SQL-3 — Search terms are LIKE-escaped before they reach SQL.**
+A search term is escaped for `LIKE` metacharacters (`%` → `\%`, `_` → `\_`) and then
+passed as a bound parameter, so it can never act as SQL syntax or as a wildcard.
+The escape exists only inside the parameterized path, so a branch that interpolates
+must drop it too — and that drop is a declared control change here rather than an
+invisible failure in a parity test.
+*Location:* `src/repositories/user.repository.js#allUsers` and any repository method
+with a `LIKE` filter.
+*Proof:* `test/unit/repository-users.test.mjs#c-sql-3`, the port of the PHP parity
+case `testAllUsersSearch`: searching for `%` and `_` matches literally rather than as
+wildcards, and a `'` in the term matches literally rather than ending the literal.
+
 **C-RACE-1 — One-shot invariants hold under concurrency.**
 Any check-then-act on a single-use resource (OTP consume, vote toggle, snapshot
 restore, upload quota) executes inside `transaction()` with `SELECT … FOR UPDATE`
@@ -284,14 +296,15 @@ A filter value that is an object, array, or function is rejected before any quer
 filter string, or document predicate is built; no operator object (`$ne`, `$gt`,
 `$regex`, `$where`) is ever interpreted by the app.
 *Location:* `src/hooks/directory.js`, `src/hooks/xpath.js`.
-*Proof:* `test/unit/hook-directory.test.mjs#operator-objects-rejected`.
+*Proof:* `test/unit/hook-directory.test.mjs#c-dir-2` (operator objects rejected).
 
 **C-DIR-1 — Directory filter tokenizer.**
 Each filter token is parsed into `{field, op, value}` with `field` from a
 fixed allowlist and `value` bound as a parameter; a non-string value is rejected
 before any query or filter string is built.
 *Location:* `src/hooks/directory.js`.
-*Proof:* `test/unit/hook-directory.test.mjs`.
+*Proof:* `test/unit/hook-directory.test.mjs#c-dir-1` (each token becomes a bound
+parameter; a token containing `'` changes no result set).
 
 **C-JSON-1 — Snapshot restore is schema-validated.**
 Restore validates each record against an explicit field schema, whitelists
