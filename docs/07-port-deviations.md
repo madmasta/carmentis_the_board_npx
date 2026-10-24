@@ -62,7 +62,7 @@ of the PHP behaviour, and the sheet's fidelity section states it.
 | Catalog class | PHP-style mechanism | Node-native analogue used here |
 |---|---|---|
 | `nosql_injection` | MongoDB operator objects | operator/query objects (`$ne`, `$gt`, `$regex`) accepted by the directory hook's document-matching layer, which exists because snapshots are stored as JSON documents |
-| `ldap_injection` | `ldap_search` filter string | the directory hook builds an LDAP-style filter string for its "advanced search" and evaluates it in-process; injection breaks out of a filter component |
+| `ldap_injection` | `ldap_search` filter string | the directory hook builds an LDAP-shaped filter string for its "advanced search" (`mode=filter`) and evaluates it in-process with its own parser (`hooks/directory.js#renderFilter` → `#parseFilter` → `#evalFilter`); no LDAP server runs in either target. The grammar is the subset `(&…)`, `(|…)`, `(!…)`, `(attr=value)`, `(attr=*sub*)` — it has no ordering operators, so `joined>`-style tokens are refused in this mode. Injection breaks out of a filter component |
 | `xpath_injection` | DOMDocument XPath | `@xmldom/xmldom` + `xpath` over the exported board document; injection breaks out of the predicate |
 | `xxe` | `libxml` entity resolution | in-house reader's entity resolver |
 | `insecure_deserialization` | PHP `unserialize` object injection | snapshot restore's `__type` reviver dispatch (`new Function`) |
