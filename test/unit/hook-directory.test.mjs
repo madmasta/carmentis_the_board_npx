@@ -110,7 +110,10 @@ describe('staff directory filter (C-DIR-1, C-DIR-2)', () => {
     expect(rows[0]).not.toHaveProperty('email');
   });
 
-  it('LIKE wildcards in a term are escaped, not honoured', async () => {
+  // The slug is what makes the branch contract work: this is C-SQL-3's LIKE-escape
+  // rule seen through the directory, and `vuln/sqli` declares that control away, so
+  // the case name has to say so (docs/03 skip granularity, docs/04 §6).
+  it('c-sql-3 LIKE wildcards in a token are escaped, not honoured', async () => {
     await makeUser('alice');
     await makeUser('bob');
 
