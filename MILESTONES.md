@@ -207,6 +207,22 @@ allocates both). Branches never touch `main`.
 | E — request/header family | `header_injection`, `cors_misconfig`, `ssrf`, `email_header_injection`, `path_traversal`, `file_upload` |
 | F — configuration family | `security_misconfig`, `information_disclosure`, `sensitive_data_exposure`, `vulnerable_components`, `insecure_deserialization` |
 
+**Progress (as of the batch-A sitting).** Five branches are built, each one commit
+off `main`, each `PASS` in the matrix (baseline suite with the declared controls
+excluded, exploit test green on the branch and red against clean `main`): `sqli`,
+`xpath_injection`, `ldap_injection`, `command_injection`, `log_injection`. Building
+them changed `main` in four places, each in its own commit: the directory advanced
+search (`mode=filter`, LDAP-shaped filter, in-process evaluator) that `ldap_injection`
+downgrades; the escaped-wildcard fix that makes its oracle differential; test-case
+renames so the cases that prove `C-XPATH-1`/`C-DIR-1` carry those slugs; and the fix
+to `controls.test.mjs#sourceFiles`, whose broken recursion had been silently skipping
+every subdirectory of `src`. Four sheets were corrected to name the code that actually
+exists (`sqli`, `xpath_injection`, `ldap_injection`, `command_injection`,
+`log_injection`). `nosql_injection` is open: its sheet assumes object-valued request
+parameters (`?q[$ne]=x`) and a directory document-matching layer, and this port has
+neither — its query parser is flat, so the branch as written cannot be reached. That
+is a spec gap to settle on `main` before the branch is built.
+
 **Exit gate:** `node tools/verify-all-branches.mjs` prints a 35-row matrix, all
 rows `PASS`, and `git branch --list 'vuln/*' | wc -l` is 35 with each branch
 exactly one commit off `main`.
