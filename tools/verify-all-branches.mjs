@@ -34,7 +34,9 @@ const keepWorktrees = argv.includes('--keep');
 function catalogSlugs() {
   const text = readFileSync(join(root, 'docs', '05-vuln-catalog.md'), 'utf8');
   const slugs = [];
-  for (const match of text.matchAll(/^\|\s*(\d+)\s*\|\s*`([a-z0-9_]+)`/gm)) slugs.push(match[2]);
+  // The catalog's branch column reads `vuln/<slug>`; the slug is what filenames, branch
+  // names and database names are built from.
+  for (const match of text.matchAll(/^\|\s*(\d+)\s*\|\s*`(?:vuln\/)?([a-z0-9_]+)`/gm)) slugs.push(match[2]);
   return slugs;
 }
 
@@ -82,6 +84,24 @@ function worktreeFor(slug) {
     return null;
   }
   return path;
+}
+
+/**
+ * `.env` is gitignored, so a fresh worktree has none — and the app refuses to start
+ * without it (docs/06: configuration lives in .env, never in the repo). Copy it once,
+ * and only when absent, so a worktree pointed at its own database can be arranged by
+ * hand afterwards.
+ */
+function provideEnv(worktree) {
+  const target = join(worktree, '.env');
+  if (existsSync(target)) return true;
+  const source = join(root, '.env');
+  if (!existsSync(source)) {
+    console.error(`${worktree} has no .env and ${root} has none to copy — the app cannot start there.`);
+    return false;
+  }
+  copyFileSync(source, target);
+  return true;
 }
 
 /**
@@ -150,12 +170,17 @@ function differential(probeWorktree, slug) {
   try {
     const result = spawnSync(node, ['node_modules/vitest/vitest.mjs', 'run', `test/vulns/probe-${slug}.test.mjs`], {
       cwd: probeWorktree,
-      env: { ...process.env, THEBOARD_VULN: '', DB_NAME: `theboard_node_${slug}`.slice(0, 40) },
+      // A database of its own, so the differential can't be influenced by whatever the
+      // branch run left behind (the test database is rebuilt either way — this is about
+      // making the evidence legible in the logs).
+      env: { ...process.env, THEBOARD_VULN: '', DB_NAME: 'theboard_node_main_probe'.slice(0, 40) },
       stdio: 'pipe',
       encoding: 'utf8',
     });
     const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
-    const collected = /\d+ tests? (?:failed|passed)/.test(output) || /\(\d+ tests?\)/.test(output);
+    // Vitest's summary line is `Tests  6 failed | 2 passed (8)`; requiring it (or the
+    // per-file line) is what separates "the probe failed" from "the probe never ran".
+    const collected = /(?:^|\n)\s*(?:Tests|Test Files)\s+\d/m.test(output);
     if (!collected) return { ok: false, verdict: 'BROKEN-PROBE', output };
     if (result.status === 0) return { ok: false, verdict: 'NO-DIFF', output };
     return { ok: true, verdict: 'FAILS ON MAIN', output };
@@ -177,8 +202,8 @@ if (!existsSync(join(mainProbe, 'package.json'))) {
     process.exit(2);
   }
 }
-if (!linkNodeModules(mainProbe)) {
-  console.error('the clean-main probe worktree has no node_modules; run `npm ci` in it once.');
+if (!provideEnv(mainProbe) || !linkNodeModules(mainProbe)) {
+  console.error('the clean-main probe worktree is not runnable (see the line above).');
   process.exit(2);
 }
 
@@ -192,7 +217,7 @@ for (const [index, slug] of slugsToRun.entries()) {
     failures += 1;
     continue;
   }
-  if (!linkNodeModules(worktree)) {
+  if (!provideEnv(worktree) || !linkNodeModules(worktree)) {
     rows.push({ slug, baseline: 'NO-DEPS', exploit: '-', diff: '-', files: '-', verdict: 'NO-DEPS' });
     failures += 1;
     continue;

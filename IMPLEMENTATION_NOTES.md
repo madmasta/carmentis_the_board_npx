@@ -404,3 +404,30 @@ across 12 files; 28 extra file(s) allowed`, 361 cases across 40 files, zero skip
    sets `on_dirty = "fail"`: this target repo is under active development, so a dirty
    tree must stop the sweep rather than be reset away. `testharness/AUTHORING_VULN_BRANCH.md`
    gained the Node-target procedure, and `testharness/README.md` the runtime contract.
+
+### M8 pilot — `vuln/sqli` (first branch built, row PASS)
+
+The loop works: one commit off `main`, three source files, baseline suite green with
+17 declared cases aside, exploit test 8/8 on the branch and 6 failures against clean
+`main`. Three things the pilot had to fix first, all of them spec-side or harness-side
+rather than in the branch:
+
+1. **The sheet pinned payloads that do not parse.** Its projection list named
+   `password_hash` as a projected column (it is not — the UNION exists to supply it),
+   named the `post_count` alias as if it were a column, and used `OR` for the boolean
+   pair (`LIKE '%%'` is already true for every row, so the pair was inert on both
+   sides). Fixed in a `spec:` commit, with the verified payloads now spelled out.
+2. **The directory sink's payloads have to survive `C-DIR-2`'s tokenizer**, which
+   splits `q` on whitespace *and* commas: word separators are `/**/`, the comment tail
+   is `#`, and `SUBSTRING(x,1,4)` is unavailable because its argument separators are
+   commas. The reachable inference probe is `(SELECT password_hash …) LIKE '$2b%'`.
+3. **A control proof without its slug in the name reads as an undeclared break.**
+   `LIKE wildcards in a term are escaped, not honoured` in
+   `test/unit/hook-directory.test.mjs` is a `C-SQL-3` proof; renamed to carry the slug
+   on `main`, which is what makes the branch skip case-level instead of file-level.
+
+Harness fixes found by the same pilot: the catalog slug regex expected `` `sqli` ``
+instead of `` `vuln/sqli` ``; worktrees need `.env` copied in (it is gitignored, and
+the app refuses to start without it, which surfaced as a vite reporter crash rather
+than a clean message); and "did the probe collect any tests" has to match vitest's
+summary line (`Tests  6 failed | 2 passed (8)`), not a phrase vitest never prints.
