@@ -7,7 +7,7 @@
 // the scan is the assertion that fails while the behavioural suites still pass.
 
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { truncateAll } from '../helpers/db.mjs';
 import { declaredControls, isDeclared, sheetPath, slugOf, vulnSlug } from '../helpers/declared.mjs';
@@ -32,7 +32,10 @@ const BASELINE_HEADERS = {
 };
 
 function sourceFiles(dir) {
-  const absolute = join(root(), dir);
+  // Recursion hands back absolute paths, so only a relative argument is joined to
+  // the root: `join` would concatenate the two, every recursive call would then read
+  // a directory that does not exist, and the scan would go blind.
+  const absolute = isAbsolute(dir) ? dir : join(root(), dir);
   if (!existsSync(absolute)) return [];
   const found = [];
   for (const entry of readdirSync(absolute, { withFileTypes: true })) {
@@ -277,7 +280,15 @@ describe('Headers and commands', () => {
   });
 
   controlCase('C-CMD-1', 'the export path runs no shell, no exec and no string command', () => {
-    const banned = [/shell\s*:\s*true/, /\bexec\s*\(/, /\bexecSync\s*\(/, /\bspawn\s*\(/, /child_process/];
+    // Not preceded by a dot: `pattern.exec(...)` is a regular-expression method, and
+    // a scan that counts those as shell invocations would flag half the codebase.
+    const banned = [
+      /shell\s*:\s*true/,
+      /(?:^|[^.\w])exec(?:Sync)?\s*\(/m,
+      /(?:^|[^.\w])spawn(?:Sync)?\s*\(/m,
+      /from 'node:child_process'/,
+      /require\('child_process'\)/,
+    ];
     const offenders = [];
 
     for (const file of sourceFiles('src')) {
