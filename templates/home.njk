@@ -1,0 +1,32 @@
+{% include "partials/header.njk" %}
+<h1>Boards</h1>
+{% if boards | default([], true) | length == 0 %}
+    <p class="empty-state">
+        No boards are available to you yet.
+        {% if is_admin %}
+            <a href="/admin/boards">Create the first board</a>.
+        {% else %}
+            An administrator needs to grant you access.
+        {% endif %}
+    </p>
+{% else %}
+    <ul class="board-list">
+        {% for board in boards %}
+        <li class="board-card">
+            <div class="board-info">
+                <h2><a href="/board/{{ board.id }}">{{ board.name }}</a></h2>
+                {% if board.description %}
+                    <p class="muted">{{ board.description }}</p>
+                {% endif %}
+            </div>
+            <div class="board-stats">
+                <span title="threads">{{ board.thread_count }} threads</span>
+                {% if board.default_access == 1 %}
+                    <span class="badge">open to all</span>
+                {% endif %}
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+{% endif %}
+{% include "partials/footer.njk" %}

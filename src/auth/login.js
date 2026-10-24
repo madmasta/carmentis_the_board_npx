@@ -10,12 +10,7 @@
 // context, so the function takes `ctx` first (PHP reached $_SESSION globally).
 
 import { get } from '../config/env.js';
-import {
-  clearAuthentication,
-  destroy as destroySession,
-  establish,
-  regenerate as regenerateSession,
-} from '../session/store.js';
+import { clearAuthentication, establish, regenerate as regenerateSession } from '../session/store.js';
 import { fakeVerify, verify as verifyPassword } from '../security/passwords.js';
 import { exceeded as throttleExceeded, windowSeconds } from '../security/login-throttle.js';
 import * as users from '../repositories/user.repository.js';
@@ -93,7 +88,10 @@ export function abandonMfaChallenge(ctx) {
 
 /** Log out: row deleted, cookie expired (docs/02 B14). */
 export async function logout(ctx) {
-  await destroySession(ctx.session, ctx.res, { https: ctx.req.https === true });
+  // C-SESS-2: the id rotates on clear and the old row is deleted, exactly as PHP
+  // deleting the session file meant. A new anonymous session takes its place so
+  // the logout flash still has somewhere to live.
+  await clearAuthentication(ctx.session, ctx.res, { https: ctx.req.https === true });
   ctx.user = null;
 }
 

@@ -193,3 +193,168 @@ wrong password flashes the generic copy; a CSRF-less POST is a 400.
     and `test/helpers/users.mjs` (`makeUser`, `makeBoard`, `fakeContext`).
     `makeUser` memoizes one bcrypt hash per distinct password: cost 10 in pure JS
     is ~50 ms and the suite creates ~40 users.
+
+## M3 — boards, access control, posts, threads, votes
+
+Verified green: 32 ported cases (`board-access`, `post`, `vote`) inside the full
+suite.
+
+1. **Repositories return values, not out-parameters.** `createThread` and
+   `createReply` return `{ postId, errors }`; PHP returns `int|false` and fills
+   `&$errors`. Callers read `.errors` where PHP read the by-reference array.
+2. **`userCanAccess(user, boardRow)` takes the board row.** `docs/01` §5 shows
+   ids; the ACL choke point needs `default_access` and `deleted_at` anyway, so it
+   takes the row it was going to re-read. `hasExplicitAccess(boardId, userId)`
+   keeps the id form.
+3. **`C-SQL-3` (LIKE escaping) is enforced in two places.** `escapeLike` lives in
+   the user repository; the directory hook builds its own escaped pattern. Both
+   are proof sites for `xpath_injection`/`sqli` side-effect declarations.
+4. **Markup renders on read, stores raw.** Parity with `Markup::render`: the
+   database holds the raw probe text (fixture invariant 3 depends on it).
+5. **Every access denial is a 404**, including the moderation and edit paths, so
+   the route table declares `board-member`-style guards as `user` and the handler
+   answers the 404 — that is what `auth_requirement_mismatch` attacks.
+
+## M4 — admin and moderation
+
+Verified green: 9 ported cases (`admin-flow`).
+
+1. **Handler name `boardsPage`.** The admin controller imports the board
+   repository as `boards`, so the board-list handler is `boardsPage` to avoid a
+   shadowing collision. Spec file list says `boards`.
+2. **Admin guards are pipeline-declared.** PHP checked `role === 'admin'` inside
+   each handler; the route table declares `admin`, so `broken_function_level_authz`
+   must remove the *declaration* (the sheet says so) and `idor` removes the
+   per-row checks. Both stay one-commit diffs.
+3. **Generated passwords are printed once.** Reset-password and add-user render
+   the value in a flash message and never store it; parity with PHP.
+
+## M5 — hook features (secure versions on `main`)
+
+Verified green: 77 hook unit cases + 28 hook integration cases.
+
+1. **XML is parsed in-house** (`src/xml/reader.js`) rather than by `libxmljs2`,
+   which `docs/01` §7 already bans (native build). `@xmldom/xmldom` + `xpath` are
+   on the fixed dependency list and are used through `src/xml/bridge.js`; the
+   entity/DOCTYPE/depth limits are the reader's own, and they are what
+   `xxe` downgrades.
+2. **`jwt_claims` is a new table** (jti ledger for single-use tokens). It has no
+   foreign key to `users`: it is a dedup ledger, and an FK made the test
+   bootstrap truncate in the wrong order. `schema-inventory.md` needs the row.
+3. **`users.avatar_path` is a new column** — the avatar hook needs per-user
+   storage and there is no other place for it. This is a documented divergence
+   from "DDL copied verbatim" in `docs/parity/schema-inventory.md`.
+4. **A reset token is validated before it is spent.** `decode()` (signature,
+   algorithm, issuer, purpose, expiry) runs first, then the password validator,
+   and only then `consume()` writes the jti. PHP burned the token before checking
+   the new password, so a mistyped password wasted the single use. Same messages,
+   same statuses; the ordering is a Node improvement to record in `docs/02` §7.
+5. **Multipart is parsed by hand** (`src/http/request.js`) — `docs/01` §7 bans a
+   body-parser, so the upload hook's 2 MiB cap is enforced in the parser, before
+   any handler sees the part.
+6. **Hook routes are appended after the 34 PHP rows** in `src/routes.js`. The
+   generated route inventory stays 1:1 for PHP rows; the hook rows are listed in
+   `docs/02` §7 and are the substrates for `sqli`, `ssrf`, `xxe`, `xpath_injection`,
+   `path_traversal`, `command_injection`, `file_upload`, `idor` (attachment),
+   `jwt_flaws`, `mass_assignment` (snapshot restore) and `ssti`.
+7. **The directory projection is fixed at five columns.** The SELECT is a literal,
+   so no filter can widen what a search returns — that is the `C-DIR-1` shape, and
+   `xpath_injection`/`sqli` widen it back.
+8. **`response.attachment()`** is the only place that sets
+   `Content-Disposition`, and it always pairs it with
+   `X-Content-Type-Options: nosniff`.
+
+## M6 — fixtures, seeds, reset
+
+Verified green: `node scripts/reset.mjs --force` (11 users, 6 boards with 1
+soft-deleted, 41 posts with 2 soft-deleted, 18 votes, 4 login-attempt rows) and
+`test/integration/fixture-invariants.test.mjs` (13 cases covering the ten
+invariants in `docs/02` §6).
+
+1. **One fixture implementation.** `test/helpers/fixtures.mjs` calls
+   `seedTestData()` exported from `scripts/seed-test-data.mjs`. `npm run db:reset`
+   seeds the dev database; `globalSetup` seeds the test database. A fixture drift
+   is one diff, and the invariant test guards both.
+2. **`fixture-invariants.test.mjs` truncates first.** Every other suite truncates
+   between cases, and the invariants count whole tables, so this file establishes
+   its own starting state instead of trusting the run order.
+3. **`reset.mjs` spawns the seed scripts with piped stdio and a 120 s timeout.**
+   `stdio: 'inherit'` hid a real failure: a seed script that leaves a database
+   handle open never exits, and the reset appeared to hang. `seed-admins.mjs` now
+   ends its root connection (`createAdminConnection()` is standalone, not pooled).
+   The reset reports `spawn error=… signal=…` instead of silence.
+4. **`--test-db` is a Node addition.** PHP rebuilds the test database in
+   `tests/bootstrap.php`; here it is a flag on the same script, so a worktree can
+   rebuild both databases in one command.
+5. **`clearMailLog()` truncates.** It used `appendFileSync(path, '')`, which is a
+   no-op: the log kept records from earlier runs, and a test that extracts a reset
+   link picked up a stale, expired token. Integration suites that read the mail
+   log must filter by recipient as well as clearing — see
+   `test/integration/hooks.test.mjs#mailTo`.
+6. **The seeded admins are promoted with direct SQL**, as in PHP: `users.create()`
+   only grants admin to `ADMIN_EMAILS` addresses, and the fixture deliberately
+   includes an admin that is not in `.env`.
+
+## M7 — test parity and the security suite
+
+Verified green: `npm run verify:all` — five inventories match, `123/123 PHP cases
+across 12 files; 28 extra file(s) allowed`, 361 cases across 40 files, zero skips.
+
+1. **Twelve proof files added**, all named by a `docs/03` *Proof:* line:
+   `test/security/controls.test.mjs`, `test/security/baseline-inert.test.mjs`,
+   `test/security/dependencies.test.mjs`, `test/unit/db-connection.test.mjs`,
+   `test/unit/repository-users.test.mjs`, `test/unit/request.test.mjs`,
+   `test/unit/crypto-primitives.test.mjs`, `test/unit/logging.test.mjs`,
+   `test/integration/session.test.mjs`, `test/integration/race-baseline.test.mjs`,
+   `test/integration/error-handling.test.mjs`, `test/integration/static.test.mjs`.
+2. **`transaction()` restarts on a deadlock.** A row that does not exist yet is
+   locked as a gap, and two gap-locking transactions on the same key deadlock
+   (MariaDB 1213): 20 parallel first-votes produced five 500s on `main`. The fix
+   is the documented remedy — bounded retry (8, jittered) on `ER_LOCK_DEADLOCK`
+   and `ER_LOCK_WAIT_TIMEOUT` only. C-RACE-1 still means "cannot both win": the
+   loser retries and then sees the winner's row.
+3. **Logout rotates the session id.** `src/auth/login.js#logout` used
+   `store.destroy()`, which keeps the id; the pipeline's post-response session
+   write then re-created the row under the pre-login id. `docs/03` C-SESS-2 asks
+   for regeneration on clear, so logout now calls `clearAuthentication`
+   (new id, old row deleted, fresh anonymous session for the logout flash).
+   PHP's `session_destroy()` meant the same thing: the id never comes back.
+4. **Two "truncate" helpers were no-ops.** `src/lib/log.js#clearForTests` and
+   `src/mail/mailer.js#clearMailLog` called `appendFileSync(path, '')`. Both now
+   truncate. Symptoms were a log full of old records and a test picking up a
+   17-hour-old reset token that had already expired.
+5. **The directory's SQL is a literal table.** `C-SQL-1`'s scan bans any `${`
+   inside a SQL-looking fragment under `src/hooks/`, and `directory.js` used to
+   build `WHERE` pieces from allowlisted column and operator names. The fragments
+   are now 32 spelled-out table rows and `LIMIT ?` is bound. Nothing about the
+   filter language changed; the scan is what changed.
+6. **`vitest` moved 3.x → 5.0.5.** `npm audit` flagged `vitest`, `tinypool` and
+   `@vitest/mocker` (two critical), and `C-DEP-1` requires a clean audit on
+   `main`. The suite runs unchanged on 5.x; `docs/01` §7 lists `vitest` by name,
+   not by version, so no spec change is needed.
+7. **`loginAs`/`postForm` yield one macrotask after the POST.** Superagent
+   resolves a response and updates the cookie jar on different turns of the loop,
+   so a test that immediately fires the next request can send the pre-login
+   cookie and be told it is anonymous. A browser cannot do this; a test can, and
+   the helper now absorbs it (`http.mjs#settled`).
+8. **`test/security/baseline-inert.test.mjs` carries no control slugs.** The
+   spec (docs/04 §8) makes it a secondary differential that must fail on the five
+   XSS-family branches without those branches declaring `C-XSS-3`, so its case
+   names are plain prose — otherwise the branch-skip rule would silence the very
+   gate that catches them.
+9. **bcryptjs writes `$2b$`, PHP writes `$2y$`.** Same algorithm, different
+   prefix letter; the proofs accept `\$2[aby]\$`. Nothing cross-reads the other
+   target's hashes, so no migration is needed — but the spec's "bcrypt" language
+   should say which prefix the Node side produces.
+10. **The scan-based proofs are strict on purpose.** `C-SQL-1`'s keyword match is
+    case-sensitive so `.join(` and prose "from" do not fire; `C-XSS-2`'s `|safe`
+    rule allows only the markup renderer's output; the inert-probe exemption for
+    `<script src="/assets/app.js" defer>` is an exact match, so an injected
+    `<script src=…>` cannot hide behind it.
+11. **`npm test` names the three baseline directories.** `docs/04` §6 runs the
+    baseline suite as `vitest run test/unit test/integration test/security` and
+    the exploit tests separately as `vitest run test/vulns`. A bare `vitest run`
+    would fold the exploit tests into the main gate — and on `main` they are
+    meant to fail — so `test` is scoped to the baseline directories and
+    `test:vulns` is its own script. `vitest.config.mjs` keeps the broad `include`
+    so the positional filters decide, exactly as the gate describes.

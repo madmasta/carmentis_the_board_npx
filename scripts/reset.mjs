@@ -101,15 +101,26 @@ console.log('Applying schema and seeding admins...');
 await applySchema(conn, dbName, statements);
 
 function runScript(name) {
+  const started = Date.now();
   const result = spawnSync(process.execPath, [join(root(), 'scripts', name)], {
-    stdio: 'inherit',
+    stdio: ['ignore', 'pipe', 'pipe'],
     env: process.env,
+    timeout: 120_000,
   });
+  const stdout = result.stdout === null ? '' : String(result.stdout);
+  const stderr = result.stderr === null ? '' : String(result.stderr);
+  process.stdout.write(stdout);
+  if (stderr !== '') process.stderr.write(stderr);
+
   if (result.status === NOT_IMPLEMENTED) {
     console.log(`${name}: skipped (milestone not implemented yet).`);
     return 0;
   }
-  return result.status ?? 1;
+  if (result.error !== undefined || result.status === null) {
+    console.error(`${name}: spawn error=${result.error?.message ?? 'none'} signal=${result.signal ?? 'none'} after ${Date.now() - started}ms`);
+    return 1;
+  }
+  return result.status;
 }
 
 let status = runScript('seed-admins.mjs');

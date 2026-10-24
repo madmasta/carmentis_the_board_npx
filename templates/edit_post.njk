@@ -1,0 +1,14 @@
+{% include "partials/header.njk" %}
+<h1>Edit message</h1>
+<form method="post" action="/post/{{ post.id }}/edit" class="panel narrow">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <label>Message
+        <textarea name="body" rows="10" required maxlength="10000">{{ post.body }}</textarea>
+    </label>
+    <p class="hint">Markup: [b]bold[/b] · [i]italic[/i] · [u]underline[/u] · [url=https://…]text[/url] · [img]https://…[/img]</p>
+    <div class="btn-row">
+        <button type="submit" class="btn btn-primary">Save</button>
+        <a class="btn" href="/thread/{{ post.parent_id if post.parent_id else post.id }}">Cancel</a>
+    </div>
+</form>
+{% include "partials/footer.njk" %}

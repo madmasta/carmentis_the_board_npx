@@ -76,8 +76,31 @@ export async function execute(sql, params = []) {
 /**
  * BEGIN / COMMIT / ROLLBACK around fn(conn). Pass the connection to the work so
  * it cannot accidentally use a pooled connection outside the transaction.
+ *
+ * A row lock that does not exist yet is a gap lock, and two gap-locking
+ * transactions on the same key deadlock: InnoDB kills one of them with 1213.
+ * Restarting is the documented remedy, and it is what keeps C-RACE-1 honest —
+ * the loser of a race retries and then sees the winner's row, instead of the
+ * request turning into a 500. The retry is bounded, and only for the two
+ * lock errors; every other failure propagates unchanged.
  */
-export async function transaction(fn) {
+const RESTARTABLE = new Set(['ER_LOCK_DEADLOCK', 'ER_LOCK_WAIT_TIMEOUT']);
+export const TRANSACTION_RETRIES = 8;
+
+export async function transaction(fn, { retries = TRANSACTION_RETRIES } = {}) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await transactionOnce(fn);
+    } catch (error) {
+      if (attempt >= retries || !RESTARTABLE.has(error?.code)) throw error;
+      // Deadlock victims restart best after a short pause; the jitter stops two
+      // losers from colliding again on the same instant.
+      await new Promise((resolve) => setTimeout(resolve, 2 + Math.floor(Math.random() * 20)));
+    }
+  }
+}
+
+async function transactionOnce(fn) {
   const conn = await getPool().getConnection();
   try {
     await conn.beginTransaction();

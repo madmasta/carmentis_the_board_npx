@@ -5,19 +5,35 @@
 // the session regeneration and the cookie flags — instead of forging a session
 // row behind the app's back.
 
+import { createServer } from 'node:http';
 import request from 'supertest';
-import { createApp } from '../../src/server.js';
+import { createRequestHandler } from '../../src/http/server.js';
+import { routes } from '../../src/routes.js';
 
-let app = null;
+let baseUrl = null;
 
-/** The app under test (one server per worker; the pool is shared). */
-export function appUnderTest() {
-  if (app === null) app = createApp();
-  return app;
+/**
+ * The app under test: one ephemeral server per worker, addressed by URL.
+ *
+ * A persistent server is deliberate. Supertest spins up its own server when it
+ * is handed a listener or a Server, and it closes that server after the request
+ * — a cookie-jar agent making several requests then hits a server that is no
+ * longer listening. The base URL keeps every request in one jar on one server,
+ * while the database pool behind it stays shared.
+ */
+export async function appUnderTest() {
+  if (baseUrl === null) {
+    const server = createServer(createRequestHandler(routes));
+    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+    // Do not hold the worker open; vitest exits when the tests finish.
+    server.unref();
+    baseUrl = `http://127.0.0.1:${server.address().port}`;
+  }
+  return baseUrl;
 }
 
-export function agent() {
-  return request.agent(appUnderTest());
+export async function agent() {
+  return request.agent(await appUnderTest());
 }
 
 /** GET a page and return the csrf_token rendered for this session. */
@@ -43,9 +59,19 @@ export function sessionIdFrom(res) {
   return found;
 }
 
+/** One macrotask, so the jar and the server's post-response writes have landed. */
+export async function settled() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+}
+
 /**
  * Log in through POST /login. Returns the response so the caller can assert on
  * the redirect; throws if the credentials did not take effect.
+ *
+ * The trailing `settled()` is not decoration: superagent resolves the response
+ * and updates its cookie jar on different turns of the loop, so a test that
+ * fires its next request immediately can send the pre-login cookie and be told
+ * it is anonymous. A browser never does that; a test can.
  */
 export async function loginAs(http, email, password = 'TestPass123') {
   const token = await csrfToken(http, '/login');
@@ -56,13 +82,16 @@ export async function loginAs(http, email, password = 'TestPass123') {
   if (res.status !== 303) {
     throw new Error(`loginAs(${email}) failed with status ${res.status}`);
   }
+  await settled();
   return res;
 }
 
 /** POST a form with a fresh CSRF token from `fromPath`. */
 export async function postForm(http, path, fields, fromPath = '/login') {
   const token = await csrfToken(http, fromPath);
-  return http.post(path).type('form').send({ csrf_token: token, ...fields });
+  const res = await http.post(path).type('form').send({ csrf_token: token, ...fields });
+  await settled();
+  return res;
 }
 
 export { request };

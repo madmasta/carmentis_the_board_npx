@@ -18,6 +18,7 @@ import { consumeFault } from '../lib/faults.js';
 import { error as logError, errorStack, info as logInfo } from '../lib/log.js';
 import { start as startSession, save as saveSession } from '../session/store.js';
 import { notFound, renderError } from '../views.js';
+import { tryRemember } from '../auth/remember.js';
 import { Halt, applyGuard, csrf as csrfCheck, loadUser, makeContext } from './controller.js';
 import { applySecurityHeaders, setHeader } from './headers.js';
 import { RequestError, hostIsAllowed, parse } from './request.js';
@@ -43,6 +44,11 @@ async function serveStatic(res, path) {
   setHeader(res, 'Content-Length', String(statSync(entry.file).size));
   await pipeline(createReadStream(entry.file), res);
   return true;
+}
+
+/** A minimal context for the remember step, before the route is known. */
+function makeRememberContext(req, res, session, user) {
+  return { req, res, session, user };
 }
 
 function logRequest(method, routeTemplate, statusCode, session) {
@@ -83,7 +89,12 @@ export function createRequestHandler(routes) {
       req.https = https;
       session = await startSession(req, res);
       req.session = session;
-      const user = await loadUser(session.userId);
+      let user = await loadUser(session.userId);
+      if (user === null) {
+        // No session but a live remember token: the token is checked before any
+        // identity is taken from it (docs/03 C-JWT-1).
+        user = await tryRemember(makeRememberContext(req, res, session, user));
+      }
 
       consumeFault(); // deterministic 500 probe; never armed in a normal run
 

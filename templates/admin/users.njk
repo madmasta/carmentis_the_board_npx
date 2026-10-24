@@ -1,0 +1,83 @@
+{% include "partials/header.njk" %}
+<h1>Users</h1>
+
+{% if created_user %}
+    <div class="flash flash-success persistent">
+        &#10004; User <strong>{{ created_user.username }}</strong>
+        ({{ created_user.email }}) was created successfully on
+        {{ created_user.created_at }}.
+        The one-time password was shown right after creation — if you missed it,
+        use "Reset password" below to issue a new one.
+    </div>
+{% endif %}
+
+<section class="panel">
+    <h2>Add user</h2>
+    <p class="muted">Leave the password blank to generate a random one. The new password is shown once after creation.</p>
+    <form method="post" action="/admin/users" class="stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="form-row">
+            <label>Username
+                <input type="text" name="username" required minlength="3" maxlength="30" pattern="[A-Za-z0-9_-]+">
+            </label>
+            <label>Email
+                <input type="email" name="email" required maxlength="254">
+            </label>
+            <label>Initial password <small>(optional)</small>
+                <input type="text" name="password" maxlength="200" autocomplete="off">
+            </label>
+        </div>
+        <button type="submit" class="btn btn-primary">Create user</button>
+    </form>
+</section>
+
+<section class="panel">
+    <h2>All users ({{ users | default([], true) | length }})</h2>
+    <form method="get" action="/admin/users" class="search-row">
+        <input type="text" name="q" placeholder="Search username or email…" value="{{ search }}">
+        <button type="submit" class="btn btn-sm">Search</button>
+    </form>
+    <table class="table">
+        <thead>
+            <tr><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Joined</th><th>Actions</th></tr>
+        </thead>
+        <tbody>
+        {% for u in users | default([], true) %}
+            <tr class="{{ 'row-banned' if u.is_banned == 1 }}{{ ' row-created' if created_user and created_user.id == u.id }}">
+                <td>
+                    {{ u.username }}
+                    {% if u.role == 'admin' %}<span class="badge badge-admin">admin</span>{% endif %}
+                    {% if u.is_banned == 1 %}<span class="badge badge-banned">banned</span>{% endif %}
+                    {% if created_user and created_user.id == u.id %}<span class="badge badge-new">new</span>{% endif %}
+                </td>
+                <td class="muted">{{ u.email }}</td>
+                <td>{{ u.role }}</td>
+                <td>{{ 'banned' if u.is_banned == 1 else 'active' }}</td>
+                <td>{{ u.created_at }}</td>
+                <td class="btn-row">
+                    {% if u.role != 'admin' %}
+                        {% if u.is_banned == 1 %}
+                            <form method="post" action="/admin/users/{{ u.id }}/unban" class="inline-form">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <button type="submit" class="btn btn-sm">Unban</button>
+                            </form>
+                        {% else %}
+                            <form method="post" action="/admin/users/{{ u.id }}/ban" class="inline-form ban-form">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                                <input type="hidden" name="reason" value="">
+                                <button type="submit" class="btn btn-sm btn-danger">Ban</button>
+                            </form>
+                        {% endif %}
+                        <form method="post" action="/admin/users/{{ u.id }}/password" class="inline-form confirm-delete"
+                              data-confirm="Reset password for {{ u.username }}?">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-sm">Reset password</button>
+                        </form>
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% include "partials/footer.njk" %}

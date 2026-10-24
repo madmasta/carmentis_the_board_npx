@@ -1,0 +1,43 @@
+{% set my_votes = my_votes | default({}, true) %}
+{% set score = post.score | default(0, true) | int %}
+{% set myVote = my_votes[post.id] | default(0, true) %}
+{% set isThread = post.parent_id == None %}
+<article class="post{% if isThread %} thread-post{% else %} reply{% endif %}" id="post-{{ post.id }}">
+    <div class="vote-col">
+        <form method="post" action="/vote" class="vote-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="post_id" value="{{ post.id }}">
+            <input type="hidden" name="value" value="1">
+            <button type="submit" class="vote-btn up{% if myVote == 1 %} active{% endif %}" aria-label="Upvote">▲</button>
+        </form>
+        <span class="score {% if score > 0 %}pos{% elif score < 0 %}neg{% endif %}">{{ score }}</span>
+        <form method="post" action="/vote" class="vote-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="post_id" value="{{ post.id }}">
+            <input type="hidden" name="value" value="-1">
+            <button type="submit" class="vote-btn down{% if myVote == -1 %} active{% endif %}" aria-label="Downvote">▼</button>
+        </form>
+    </div>
+    <div class="post-body">
+        {% if isThread %}
+        <h2 class="post-title">{{ post.title }}</h2>
+        {% endif %}
+        <div class="post-meta">
+            <strong>{{ post.author_name }}</strong>
+            · <time>{{ post.created_at }}</time>
+            {% if post.edited_at %} · edited{% endif %}
+        </div>
+        <div class="post-content">{{ post.body | markup }}</div>
+        <div class="post-actions">
+            {% if current_user %}
+                <a class="btn btn-link" href="/post/{{ post.id }}/edit">Edit</a>
+                {% if is_admin %}
+                    <form method="post" action="/post/{{ post.id }}/delete" class="inline-form confirm-delete">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                        <button type="submit" class="btn btn-link btn-danger-text">Delete</button>
+                    </form>
+                {% endif %}
+            {% endif %}
+        </div>
+    </div>
+</article>

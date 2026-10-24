@@ -1,0 +1,39 @@
+{% include "partials/header.njk" %}
+<h1>Moderation — recent messages</h1>
+<section class="panel">
+    {% if posts | default([], true) | length == 0 %}
+        <p class="empty-state">No messages posted yet.</p>
+    {% else %}
+        <table class="table">
+            <thead><tr><th>Board</th><th>Author</th><th>When</th><th>Preview</th><th></th></tr></thead>
+            <tbody>
+            {% for p in posts %}
+                <tr>
+                    <td>{{ p.board_name }}</td>
+                    <td>{{ p.author_name }}</td>
+                    <td><time>{{ p.created_at }}</time></td>
+                    <td>
+                        {% if p.parent_id == None %}
+                            <strong>{{ p.title }}</strong> —
+                        {% endif %}
+                        {{ p.body | plain }}
+                    </td>
+                    <td class="btn-row">
+                        {% if p.parent_id != None %}
+                            <a class="btn btn-sm" href="/thread/{{ p.parent_id }}#post-{{ p.id }}">View</a>
+                        {% else %}
+                            <a class="btn btn-sm" href="/thread/{{ p.id }}">View</a>
+                        {% endif %}
+                        <form method="post" action="/post/{{ p.id }}/delete" class="inline-form confirm-delete"
+                              data-confirm="Delete this message?">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+</section>
+{% include "partials/footer.njk" %}

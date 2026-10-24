@@ -122,3 +122,19 @@ CREATE TABLE IF NOT EXISTS sessions (
     KEY idx_sessions_expiry (expires_at),
     CONSTRAINT fk_sessions_user FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ---- Node delta: single-use token claims (docs/03 C-JWT-1) -----------------
+-- Password-reset and remember-me tokens are stateless JWTs, but "single use" is
+-- state: the jti of every consumed token is recorded here, and a
+-- replayed token is refused even though its signature is still valid.
+
+CREATE TABLE IF NOT EXISTS jwt_claims (
+    jti         VARCHAR(64)  NOT NULL,
+    purpose     VARCHAR(32)  NOT NULL,
+    user_id     INT UNSIGNED NULL,
+    issued_at   TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    consumed_at DATETIME     NULL,
+    PRIMARY KEY (jti),
+    KEY idx_claims_purpose (purpose),
+    KEY idx_claims_issued (issued_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -8,7 +8,10 @@
     <label>Password
         <input type="password" name="password" required maxlength="200">
     </label>
+    <label class="checkbox">
+        <input type="checkbox" name="remember" value="1">Remember me for 15 minutes
+    </label>
     <button type="submit" class="btn btn-primary">Log in</button>
-    <p class="muted">No account? <a href="/register">Register</a></p>
+    <p class="muted">No account? <a href="/register">Register</a> · Forgot your password? <a href="/forgot-password">Reset it</a></p>
 </form>
 {% include "partials/footer.njk" %}

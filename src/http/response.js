@@ -30,6 +30,26 @@ export function text(res, body, code = 200, contentType = 'text/plain; charset=u
 }
 
 /**
+ * A stored or generated file, answered by the app. The Content-Type is chosen
+ * from the application's own allowlist and the filename is sanitised here —
+ * neither is taken from a client header (docs/03 C-UPLOAD-1, C-INFO-2).
+ */
+export function attachment(res, body, { contentType, filename = null, inline = false, code = 200 }) {
+  res.statusCode = code;
+  setHeader(res, 'Content-Type', contentType);
+  setHeader(res, 'X-Content-Type-Options', 'nosniff');
+  setHeader(res, 'Cache-Control', 'private, max-age=0, no-cache');
+
+  if (filename !== null) {
+    const safe = String(filename).replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120);
+    setHeader(res, 'Content-Disposition', `${inline ? 'inline' : 'attachment'}; filename="${safe}"`);
+  }
+
+  setHeader(res, 'Content-Length', String(Buffer.byteLength(body)));
+  res.end(body);
+}
+
+/**
  * Status page for 400/403/404/409/413/500. `template` is kept in the signature
  * so callers can point at a specific view; the error view is the default.
  */

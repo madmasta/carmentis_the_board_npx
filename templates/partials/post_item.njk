@@ -1,0 +1,27 @@
+{% set score = post.score | default(0, true) | int %}
+<article class="thread-row">
+    <div class="vote-col">
+        <form method="post" action="/vote" class="vote-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="post_id" value="{{ post.id }}">
+            <input type="hidden" name="value" value="1">
+            <button type="submit" class="vote-btn up" aria-label="Upvote">▲</button>
+        </form>
+        <span class="score {% if score > 0 %}pos{% elif score < 0 %}neg{% endif %}">{{ score }}</span>
+        <form method="post" action="/vote" class="vote-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <input type="hidden" name="post_id" value="{{ post.id }}">
+            <input type="hidden" name="value" value="-1">
+            <button type="submit" class="vote-btn down" aria-label="Downvote">▼</button>
+        </form>
+    </div>
+    <div class="thread-summary">
+        <h3><a href="/thread/{{ post.id }}">{{ post.title }}</a></h3>
+        <p class="thread-teaser">{{ post.body | plain }}</p>
+        <p class="post-meta">
+            by <strong>{{ post.author_name }}</strong>
+            · <time>{{ post.created_at }}</time>
+            · <a href="/thread/{{ post.id }}">{{ post.reply_count | default(0, true) }} replies</a>
+        </p>
+    </div>
+</article>

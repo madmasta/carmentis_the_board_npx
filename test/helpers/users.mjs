@@ -5,6 +5,7 @@
 import { randomBytes } from 'node:crypto';
 import { query, insert } from './db.mjs';
 import { hash } from '../../src/security/passwords.js';
+import * as postRepository from '../../src/repositories/post.repository.js';
 
 export const DEFAULT_PASSWORD = 'CorrectHorse1';
 
@@ -45,6 +46,13 @@ export async function makeBoard(name = 'General', defaultAccess = false, created
   ]);
   const rows = await query('SELECT * FROM boards WHERE id = ?', [insertId]);
   return rows[0];
+}
+
+/** Top-level thread; mirrors IntegrationTestCase::makeThread. */
+export async function makeThread(boardId, authorId, title = 'Hello', body = 'World') {
+  const { postId, errors } = await postRepository.createThread(boardId, authorId, title, body);
+  if (postId === null) throw new Error(`thread not created: ${errors.join('; ')}`);
+  return postId;
 }
 
 /** A fake controller context for calls that would otherwise need a request. */

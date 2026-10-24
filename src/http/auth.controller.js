@@ -7,6 +7,7 @@
 import { get } from '../config/env.js';
 import { addFlash } from './flash.js';
 import { Halt, csrf, post, posts, view } from './controller.js';
+import { clearRemember, issueRemember } from '../auth/remember.js';
 import { redirect } from './response.js';
 import { Mailer } from '../mail/mailer.js';
 import * as mfa from '../security/mfa.js';
@@ -48,6 +49,9 @@ export async function login(ctx) {
 
   switch (result.status) {
     case 'ok':
+      // The remember-me cookie is minted only after a successful password check,
+      // and carries a signed claim, never an identity (docs/03 C-JWT-1).
+      if (post(ctx, 'remember') === '1') await issueRemember(ctx, result.user);
       addFlash(ctx.session, 'success', `Welcome back, ${result.user.username}!`);
       redirect(ctx.res, consumeIntendedPath(ctx));
       throw new Halt();
@@ -141,6 +145,7 @@ export async function mfaResend(ctx) {
 
 export async function logout(ctx) {
   csrf(ctx);
+  clearRemember(ctx);
   await endSession(ctx);
   redirect(ctx.res, '/login');
   throw new Halt();

@@ -12,7 +12,7 @@
 // (`[SECURITY] login throttle BYPASSED (…): email=… ip=… failures=n/m`) —
 // see docs/03 C-INFO-3.
 
-import { appendFileSync, mkdirSync } from 'node:fs';
+import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { get } from '../config/env.js';
 import { isoTimestamp } from './clock.js';
@@ -81,7 +81,8 @@ export function errorStack(err) {
 export function clearForTests() {
   try {
     mkdirSync(join(logPath(), '..'), { recursive: true });
-    appendFileSync(logPath(), '', 'utf8');
+    // Truncate: appending an empty string would keep every previous record.
+    writeFileSync(logPath(), '', 'utf8');
   } catch {
     /* ignore */
   }

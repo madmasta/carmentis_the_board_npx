@@ -111,6 +111,7 @@ export async function truncateAll() {
     'login_attempts',
     'mfa_codes',
     'sessions',
+    'jwt_claims',
     'users',
   ]) {
     await query(`TRUNCATE TABLE \`${table}\``);

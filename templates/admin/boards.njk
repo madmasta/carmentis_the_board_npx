@@ -1,0 +1,55 @@
+{% include "partials/header.njk" %}
+<h1>Boards</h1>
+
+<section class="panel">
+    <h2>Create board</h2>
+    <form method="post" action="/admin/boards" class="stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <div class="form-row">
+            <label>Name
+                <input type="text" name="name" required maxlength="100">
+            </label>
+        </div>
+        <label>Description
+            <input type="text" name="description" maxlength="500">
+        </label>
+        <label class="checkbox">
+            <input type="checkbox" name="default_access" value="1">
+            Grant access to all users automatically
+        </label>
+        <button type="submit" class="btn btn-primary">Create</button>
+    </form>
+</section>
+
+<section class="panel">
+    <h2>All boards ({{ boards | default([], true) | length }})</h2>
+    {% if boards | default([], true) | length == 0 %}
+        <p class="empty-state">No boards yet.</p>
+    {% else %}
+        <table class="table">
+            <thead>
+                <tr><th>Name</th><th>Description</th><th>Access</th><th>Threads</th><th>Created by</th><th></th></tr>
+            </thead>
+            <tbody>
+            {% for b in boards %}
+                <tr>
+                    <td><a href="/board/{{ b.id }}">{{ b.name }}</a></td>
+                    <td class="muted">{{ b.description }}</td>
+                    <td>{{ 'All users' if b.default_access == 1 else 'Restricted' }}</td>
+                    <td>{{ b.thread_count }}</td>
+                    <td>{{ b.creator_name | default('—', true) }}</td>
+                    <td class="btn-row">
+                        <a class="btn btn-sm" href="/admin/boards/{{ b.id }}">Manage</a>
+                        <form method="post" action="/admin/boards/{{ b.id }}/delete" class="inline-form confirm-delete"
+                              data-confirm="Delete board {{ b.name }}?">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+                            <button type="submit" class="btn btn-sm btn-danger">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+</section>
+{% include "partials/footer.njk" %}

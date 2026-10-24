@@ -8,7 +8,7 @@
 import { query } from '../db/connection.js';
 import { addFlash, takeFlash } from './flash.js';
 import { CSRF_ERROR, CSRF_FIELD, issue as issueCsrf, verify } from '../security/csrf.js';
-import { render, renderError } from '../views.js';
+import { forbidden as forbiddenView, notFound as notFoundView, render, renderError } from '../views.js';
 import { redirect } from './response.js';
 
 /** Thrown by a guard that already produced the response. */
@@ -48,7 +48,8 @@ export function view(ctx, template, vars = {}) {
     // PHP rendered the hidden field via Csrf::field(), which issues the token on
     // demand; the port does the same so every form on the page carries one.
     csrf_token: issueCsrf(ctx.session),
-    flash_messages: takeFlash(ctx.session),
+    // docs/02 pins the view variable name: templates read `flashes`.
+    flashes: takeFlash(ctx.session),
   });
 }
 
@@ -94,6 +95,18 @@ export function requireAdmin(ctx) {
     throw new Halt();
   }
   return user;
+}
+
+/** Render the not-found view and stop (the PHP `not_found()`). */
+export function notFound(ctx) {
+  notFoundView(ctx.res);
+  throw new Halt();
+}
+
+/** Render the 403 view with a message and stop (the PHP `forbidden()`). */
+export function forbidden(ctx, message) {
+  forbiddenView(ctx.res, message);
+  throw new Halt();
 }
 
 /** 403 for anonymous callers on a login-or-anon route. */

@@ -91,6 +91,11 @@ export async function updatePassword(userId, newPassword) {
   await execute('UPDATE users SET password_hash = ? WHERE id = ?', [await hash(newPassword), userId]);
 }
 
+/** The stored avatar filename (a generated name; never a client path). */
+export async function setAvatarPath(userId, path) {
+  return execute('UPDATE users SET avatar_path = ? WHERE id = ?', [path, userId]);
+}
+
 export async function setEmail(userId, email) {
   if ((await findByEmail(email)) !== null) return false;
   await execute('UPDATE users SET email = ? WHERE id = ?', [normalizeEmail(email), userId]);

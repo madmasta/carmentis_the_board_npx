@@ -1,47 +1,80 @@
-// M1 unit coverage for the config loader (not a parity case).
+// Port of tests/Unit/EnvTest.php — the .env loader (docs/01 section 3).
+//
+// The PHP case names and assertions are kept 1:1; the extra loader semantics that
+// the PHP class does not expose the same way (int junk, bool spellings, list
+// trimming against the shipped defaults) live in env-loader.test.mjs.
 
-import { describe, it, expect, afterEach } from 'vitest';
-import { bool, get, int, list } from '../../src/config/env.js';
-import { DEFAULTS } from '../../src/config/defaults.js';
+import { rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { afterEach, describe, expect, it } from 'vitest';
+import { get, int, list, resetForTests } from '../../src/config/env.js';
 import { clearKeys, restore, setKeys } from '../helpers/env.mjs';
 
+function tempEnvFile(contents) {
+  const path = join(tmpdir(), `theboard-env-${Date.now()}-${Math.random().toString(16).slice(2)}.env`);
+  writeFileSync(path, contents, 'utf8');
+  return path;
+}
+
 describe('env loader', () => {
-  afterEach(restore);
-
-  it('reads a string key, falling back to the shipped default', () => {
-    clearKeys(['SESSION_NAME']);
-    expect(get('SESSION_NAME')).toBe(DEFAULTS.SESSION_NAME);
-    setKeys({ SESSION_NAME: 'custom_session' });
-    expect(get('SESSION_NAME')).toBe('custom_session');
+  afterEach(() => {
+    resetForTests(null);
+    restore();
   });
 
-  it('treats an empty environment value as unset, like PHP getenv()', () => {
-    setKeys({ APP_NAME: '' });
-    expect(get('APP_NAME', 'fallback')).toBe(DEFAULTS.APP_NAME);
-  });
+  it('testParsesKeysValuesAndComments', () => {
+    const path = tempEnvFile(
+      [
+        '# comment line',
+        'APP_NAME=My Board',
+        '',
+        '# quoted values',
+        'TITLE="Hello World"',
+        "SINGLE='quoted'",
+        'EMPTY=',
+        'NUMBER=42',
+      ].join('\n'),
+    );
 
-  it('parses ints with a fallback for junk', () => {
-    setKeys({ LOGIN_MAX_ATTEMPTS: '9' });
-    expect(int('LOGIN_MAX_ATTEMPTS', 5)).toBe(9);
-    setKeys({ LOGIN_MAX_ATTEMPTS: 'nope' });
-    expect(int('LOGIN_MAX_ATTEMPTS', 5)).toBe(5);
-  });
-
-  it('parses booleans the PHP way', () => {
-    for (const truthy of ['1', 'true', 'TRUE', 'yes', 'on']) {
-      setKeys({ APP_DEBUG: truthy });
-      expect(bool('APP_DEBUG', false)).toBe(true);
+    // PHP had no shipped default for APP_NAME; the port keeps DEFAULTS out of the
+    // way of this assertion by clearing the ambient value first.
+    clearKeys(['APP_NAME']);
+    resetForTests(path);
+    try {
+      expect(get('APP_NAME')).toBe('My Board');
+      expect(get('SINGLE')).toBe('quoted');
+      expect(get('MISSING_KEY_THAT_DOES_NOT_EXIST')).toBeNull();
+      expect(get('MISSING_KEY_THAT_DOES_NOT_EXIST', '')).toBe('');
+      expect(int('MISSING_KEY_THAT_DOES_NOT_EXIST', 42)).toBe(42);
+      expect(int('NUMBER', 0)).toBe(42);
+    } finally {
+      rmSync(path, { force: true });
     }
-    for (const falsy of ['0', 'false', 'no', 'off', '']) {
-      setKeys({ APP_DEBUG: falsy });
-      expect(bool('APP_DEBUG', true)).toBe(false);
+  });
+
+  it('testRealEnvironmentVariableWins', () => {
+    const path = tempEnvFile('OVERRIDE_ME=file-value\n');
+
+    setKeys({ OVERRIDE_ME: 'env-value' });
+    resetForTests(path);
+    try {
+      expect(get('OVERRIDE_ME')).toBe('env-value');
+    } finally {
+      restore();
+      rmSync(path, { force: true });
     }
   });
 
-  it('splits comma lists, trims and drops empties', () => {
-    setKeys({ ADMIN_EMAILS: 'a@x.example, b@y.example,,' });
-    expect(list('ADMIN_EMAILS')).toEqual(['a@x.example', 'b@y.example']);
-    setKeys({ ADMIN_EMAILS: '   ' });
-    expect(list('ADMIN_EMAILS')).toEqual([]);
+  it('testListParsesCommaSeparatedValues', () => {
+    const path = tempEnvFile('EMAILS=a@b.com, c@d.com ,, e@f.com\n');
+
+    clearKeys(['EMAILS']);
+    resetForTests(path);
+    try {
+      expect(list('EMAILS')).toEqual(['a@b.com', 'c@d.com', 'e@f.com']);
+    } finally {
+      rmSync(path, { force: true });
+    }
   });
 });

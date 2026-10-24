@@ -20,6 +20,12 @@ export async function setup() {
   return async function teardown() {
     const db = await import('./db.mjs');
     await db.closeDb();
+    // Fixtures run through the app's own pool; if it stays open the run ends
+    // with a lingering-handle warning instead of a clean exit.
+    if (process.env.THEBOARD_FIXTURES !== 'none') {
+      const app = await import('../../src/db/connection.js');
+      await app.close();
+    }
     process.stderr.write(`test database \`${dbName ?? testDatabase}\` left in place for inspection\n`);
   };
 }

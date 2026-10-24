@@ -11,15 +11,13 @@ import { redirect } from './response.js';
 import { Mailer } from '../mail/mailer.js';
 import { escapeHtml } from '../security/markup.js';
 import { verify as verifyPassword } from '../security/passwords.js';
+import * as postRepository from '../repositories/post.repository.js';
 import * as users from '../repositories/user.repository.js';
 import * as validator from '../security/validator.js';
 
 export async function show(ctx) {
   const user = requireLogin(ctx);
-  // M3 owns the post repository; imported lazily so this milestone can boot
-  // without it (docs/01 section 2).
-  const posts0 = await import('../repositories/post.repository.js');
-  const ownPosts = await posts0.listByAuthor(Number(user.id));
+  const ownPosts = await postRepository.listByAuthor(Number(user.id));
 
   view(ctx, 'profile', { title: 'My profile', profile_user: user, posts: ownPosts });
 }

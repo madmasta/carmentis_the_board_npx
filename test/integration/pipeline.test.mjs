@@ -3,12 +3,12 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 import request from 'supertest';
-import { createApp } from '../../src/server.js';
+import { appUnderTest } from '../helpers/http.mjs';
 import { CSP_STRING } from '../../src/security/headers-policy.js';
 import { setTestFault } from '../../src/lib/faults.js';
 import { clearKeys, restore, setKeys } from '../helpers/env.mjs';
 
-const app = createApp();
+const app = await appUnderTest();
 
 afterEach(() => {
   setTestFault(null);

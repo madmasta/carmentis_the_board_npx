@@ -1,0 +1,22 @@
+{% include "partials/header.njk" %}
+<h1>Link preview</h1>
+
+<section class="panel">
+    <form method="post" action="/preview" class="stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>URL
+            <input type="url" name="url" required value="{{ url }}">
+        </label>
+        <button type="submit" class="btn btn-primary">Preview</button>
+    </form>
+    <p class="hint">Only public web addresses are fetched. The page itself is never embedded — its title and description are taken as text.</p>
+</section>
+
+<section class="panel preview-card">
+    <h2>{{ card.title if card.title else 'Preview' }}</h2>
+    <p>{{ card.description }}</p>
+    {% if card.finalUrl %}
+        <p class="hint">Target: <code>{{ card.finalUrl }}</code></p>
+    {% endif %}
+</section>
+{% include "partials/footer.njk" %}

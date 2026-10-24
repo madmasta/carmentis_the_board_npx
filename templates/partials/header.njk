@@ -22,6 +22,7 @@
                     <a href="/admin/boards">Admin</a>
                 {% endif %}
                 <a href="/">Boards</a>
+                <a href="/directory">Directory</a>
                 <a href="/profile">{{ current_user.username }}</a>
                 <form method="post" action="/logout" class="inline-form">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
@@ -35,6 +36,6 @@
     </nav>
 </header>
 <main class="container">
-{% for flash in flash_messages | default([], true) %}
+{% for flash in flashes | default([], true) %}
     <div class="flash flash-{{ flash.type }}">{{ flash.message }}</div>
 {% endfor %}

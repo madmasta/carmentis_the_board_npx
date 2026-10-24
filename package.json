@@ -14,7 +14,8 @@
     "seed": "node scripts/seed-test-data.mjs",
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
-    "test": "vitest run",
+    "test": "vitest run test/unit test/integration test/security",
+    "test:vulns": "vitest run test/vulns",
     "test:unit": "vitest run test/unit",
     "test:integration": "vitest run test/integration",
     "test:security": "vitest run test/security",
@@ -36,6 +37,6 @@
   },
   "devDependencies": {
     "supertest": "^7.2.2",
-    "vitest": "^3.2.4"
+    "vitest": "^5.0.5"
   }
 }

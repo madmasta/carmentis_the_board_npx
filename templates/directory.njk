@@ -1,0 +1,57 @@
+{% include "partials/header.njk" %}
+<h1>Staff directory</h1>
+
+<section class="panel">
+    <form method="get" action="/directory" class="search-row">
+        <input type="text" name="q" placeholder="username:value, joined:value…" value="{{ q }}">
+        <select name="role">
+            <option value="" {{ 'selected' if role == '' }}>any role</option>
+            <option value="user" {{ 'selected' if role == 'user' }}>user</option>
+            <option value="admin" {{ 'selected' if role == 'admin' }}>admin</option>
+        </select>
+        <button type="submit" class="btn btn-sm">Filter</button>
+    </form>
+    {% if filter_error %}
+        <p class="flash flash-error">{{ filter_error }}</p>
+    {% endif %}
+    <p class="hint">
+        Filter tokens are matched field by field — <code>username:ali</code>, <code>role:admin</code>,
+        <code>joined:2024</code>. Values are always compared as text.
+    </p>
+</section>
+
+<section class="panel">
+    <h2>Saved search (XPath)</h2>
+    <form method="post" action="/directory/search" class="stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>Query
+            <input type="text" name="q" value="{{ q }}" placeholder="role:user posts&gt;2">
+        </label>
+        <button type="submit" class="btn btn-primary">Run saved search</button>
+    </form>
+    {% if expression %}
+        <p class="hint mono">Expression: <code>{{ expression }}</code></p>
+    {% endif %}
+</section>
+
+<section class="panel">
+    <h2>{{ people | default([], true) | length }} {{ 'person' if (people | default([], true) | length) == 1 else 'people' }}</h2>
+    {% if people | default([], true) | length == 0 %}
+        <p class="empty-state">Nobody matches that filter.</p>
+    {% else %}
+        <table class="table">
+            <thead><tr><th>Username</th><th>Role</th><th>Joined</th><th>Messages</th></tr></thead>
+            <tbody>
+            {% for person in people %}
+                <tr>
+                    <td>{{ person.username }}</td>
+                    <td>{{ person.role }}</td>
+                    <td>{{ person.created_at }}</td>
+                    <td>{{ person.post_count }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+</section>
+{% include "partials/footer.njk" %}

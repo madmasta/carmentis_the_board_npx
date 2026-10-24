@@ -4,9 +4,10 @@
 
 'use strict';
 
-/** Confirm before submitting a destructive form. */
+/** Confirm before submitting a destructive form (the `.confirm-delete` class
+   already exists in the ported markup; `data-confirm` is the generic hook). */
 function bindConfirmForms() {
-  document.querySelectorAll('form[data-confirm]').forEach((form) => {
+  document.querySelectorAll('form[data-confirm], form.confirm-delete').forEach((form) => {
     form.addEventListener('submit', (event) => {
       if (!window.confirm(form.dataset.confirm || 'Are you sure?')) {
         event.preventDefault();

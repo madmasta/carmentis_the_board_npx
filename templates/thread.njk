@@ -1,0 +1,32 @@
+{% include "partials/header.njk" %}
+{% set my_votes = my_votes | default({}, true) %}
+<p class="breadcrumb">
+    <a href="/">Boards</a> /
+    <a href="/board/{{ board.id }}">{{ board.name }}</a>
+</p>
+
+{% set post = thread %}
+{% include "partials/post.njk" %}
+
+<section class="replies">
+    <h2>{{ replies | default([], true) | length }} {{ 'reply' if (replies | default([], true) | length) == 1 else 'replies' }}</h2>
+    {% if replies | default([], true) | length == 0 %}
+        <p class="empty-state">No replies yet.</p>
+    {% else %}
+        {% for reply in replies %}
+            {% set post = reply %}
+            {% include "partials/post.njk" %}
+        {% endfor %}
+    {% endif %}
+</section>
+
+<section class="panel reply-box">
+    <h3>Reply</h3>
+    <form method="post" action="/thread/{{ thread.id }}/reply" class="stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <textarea name="body" rows="5" required maxlength="10000">{{ old_body | default('', true) }}</textarea>
+        <p class="hint">Markup: [b]bold[/b] · [i]italic[/i] · [u]underline[/u] · [url=https://…]text[/url] · [img]https://…[/img]</p>
+        <button type="submit" class="btn btn-primary">Post reply</button>
+    </form>
+</section>
+{% include "partials/footer.njk" %}

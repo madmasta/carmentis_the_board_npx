@@ -1,0 +1,52 @@
+{% include "partials/header.njk" %}
+<p class="breadcrumb"><a href="/">Boards</a> / {{ board.name }}</p>
+<div class="board-header">
+    <h1>{{ board.name }}</h1>
+    {% if board.description %}
+        <p class="muted">{{ board.description }}</p>
+    {% endif %}
+</div>
+
+<section class="panel">
+    <h2>Start a new thread</h2>
+    <form method="post" action="/board/{{ board.id }}/thread" class="stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>Title
+            <input type="text" name="title" maxlength="200" required value="{{ old_title | default('', true) }}">
+        </label>
+        <label>Message
+            <textarea name="body" rows="6" required maxlength="10000">{{ old_body | default('', true) }}</textarea>
+        </label>
+        <p class="hint">
+            Markup: <code>[b]bold[/b]</code> <code>[i]italic[/i]</code> <code>[u]underline[/u]</code>
+            <code>[url]https://example.com[/url]</code>
+            <code>[url=https://example.com]link text[/url]</code>
+            <code>[img]https://example.com/pic.png[/img]</code>
+        </p>
+        <button type="submit" class="btn btn-primary">Post thread</button>
+    </form>
+</section>
+
+<section class="threads">
+    <h2>Threads ({{ threads | default([], true) | length }})</h2>
+    {% if threads | default([], true) | length == 0 %}
+        <p class="empty-state">No threads yet. Be the first to post!</p>
+    {% else %}
+        {% for thread in threads %}
+            {% set post = thread %}
+            {% include "partials/post_item.njk" %}
+        {% endfor %}
+        {% if pages > 1 %}
+            <nav class="pagination">
+                {% for p in range(1, pages + 1) %}
+                    {% if p == page %}
+                        <span class="current">{{ p }}</span>
+                    {% else %}
+                        <a href="/board/{{ board.id }}?page={{ p }}">{{ p }}</a>
+                    {% endif %}
+                {% endfor %}
+            </nav>
+        {% endif %}
+    {% endif %}
+</section>
+{% include "partials/footer.njk" %}

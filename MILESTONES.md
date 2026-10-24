@@ -96,7 +96,7 @@ files all present.
 
 ---
 
-## M3 — boards, access control, posts, threads, votes
+## M3 — boards, access control, posts, threads, votes (complete, gate green)
 
 **Entry:** M2 green.
 
@@ -112,7 +112,7 @@ green; `npm run verify:parity` green.
 
 ---
 
-## M4 — admin and moderation
+## M4 — admin and moderation (complete, gate green)
 
 **Entry:** M3 green.
 
@@ -127,7 +127,7 @@ moderation feed.
 
 ---
 
-## M5 — hook features (secure versions)
+## M5 — hook features (secure versions) (complete, gate green)
 
 **Entry:** M3 green (M4 in parallel is allowed: different files).
 
@@ -146,7 +146,7 @@ and `test/unit/hook-*.test.mjs`, `test/integration/hooks.test.mjs`.
 
 ---
 
-## M6 — fixtures, seeds, reset
+## M6 — fixtures, seeds, reset (complete, gate green)
 
 **Entry:** M2 green.
 
@@ -166,7 +166,7 @@ asserts every fixture invariant listed in `docs/02-feature-parity.md` §6).
 
 ---
 
-## M7 — test parity
+## M7 — test parity (complete, gate green)
 
 **Entry:** M2–M6 green.
 

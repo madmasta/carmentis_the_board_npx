@@ -9,7 +9,7 @@
 // message is composed, and `From` comes from configuration only. That strip is
 // the control; `vuln/email_header_injection` removes it.
 
-import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { connect as tlsConnect } from 'node:tls';
 import { join } from 'node:path';
@@ -72,7 +72,8 @@ export function readMailLog() {
 export function clearMailLog() {
   try {
     mkdirSync(join(mailLogPath(), '..'), { recursive: true });
-    appendFileSync(mailLogPath(), '', 'utf8');
+    // Truncate, not append: appending an empty string leaves the old records.
+    writeFileSync(mailLogPath(), '', 'utf8');
     return true;
   } catch {
     return false;
