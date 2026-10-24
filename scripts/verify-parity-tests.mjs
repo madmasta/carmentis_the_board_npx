@@ -40,7 +40,12 @@ const EXTRA_FILE_ALLOWLIST = new Set([
 const SECTION_RE = /^## (\S+) → `([^`]+)`/;
 const CASE_RE = /^\|\s*`([^`]+)`\s*\|\s*`([^`]+)`\s*\|/;
 const IT_RE = /\b(?:it|test)\s*\(\s*(['"`])((?:[^'"`\\]|\\.)*)\1/g;
-const SKIP_RE = /(?:^|\s)(?:it|test|describe)\.(?:skip|skipIf|only)\b|^\s*x(?:it|describe)\b/m;
+// A conditional skip is the branch contract, not a dodge: docs/04 section 6 lets a
+// `vuln/*` branch stand aside exactly the proof cases of the controls its sheet declares
+// removed, and `it.skipIf(isDeclared('C-SQL-1'))` is how a mapped file says that. On
+// `main` nothing is declared, so every case runs — which is what the assertions below
+// and the suite itself check. An unconditional skip, `only`, or `xit` is still a failure.
+const SKIP_RE = /(?:^|\s)(?:it|test|describe)\.(?:skip|only)\b|^\s*x(?:it|describe)\b/m;
 
 function parseInventory(text) {
   const sections = [];

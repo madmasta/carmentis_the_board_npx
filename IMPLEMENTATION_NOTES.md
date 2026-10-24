@@ -358,3 +358,49 @@ across 12 files; 28 extra file(s) allowed`, 361 cases across 40 files, zero skip
     meant to fail — so `test` is scoped to the baseline directories and
     `test:vulns` is its own script. `vitest.config.mjs` keeps the broad `include`
     so the positional filters decide, exactly as the gate describes.
+
+## M8 — the branch harness, and the Carmentis harness side
+
+1. **`npm run verify:branch` is the per-branch gate** (`scripts/verify-branch.mjs`):
+   slug from `THEBOARD_VULN` or the checked-out `vuln/*` branch, sheet and exploit
+   test must exist, then reset → baseline suite → exploit test. It exports nothing
+   new to the app; the skip decision comes from `test/helpers/declared.mjs`, which
+   reads the sheet's "Baseline control removed" tables (side-effect rows included).
+2. **Two skip mechanisms, deliberately.** The harness drops declared cases with a
+   negative `--testNamePattern` (`^(?!(.*c-sql-1…).*)`), which is case-level and needs
+   no per-file edits, and `test/security/controls.test.mjs` *additionally* skips its
+   own declared cases with `expected-downgrade: <ID>` printed and then re-runs those
+   probes in a slug-free audit case — "a sheet that lists a control which is still
+   enforced also fails" (docs/04 §6). The audit case must not carry a slug, or the
+   harness would remove the very check that polices the sheet.
+3. **`docs/04` §7's probe file is `.probe-<slug>.test.mjs`; the runner writes
+   `probe-<slug>.test.mjs`.** A leading dot is outside vitest's default glob, so the
+   documented name would collect zero tests, "fail", and be scored as a successful
+   differential. The runner therefore uses a visible name and requires the output to
+   mention a test count before a non-zero exit counts as `FAILS ON MAIN`; a run that
+   collected nothing is `BROKEN-PROBE`, not a pass.
+4. **Worktrees get `node_modules` by symlink**, not `npm ci` × 35: the dependency tree
+   is one lockfile, and 35 installs is the slowest way to share it. `junction` on
+   Windows, directory symlink elsewhere, `npm ci` fallback if the platform refuses.
+5. **`tools/relaunch.mjs`** is the bring-up step the Carmentis harness runs between
+   branches. Three Windows facts it has to respect, all learned the hard way:
+   `process.kill(pid, 0)` can abort the runtime (uv_async assertion) instead of
+   throwing, so liveness asks `tasklist`; an unclosed `AbortSignal.timeout` timer plus
+   `process.exit` aborts it too, so the probe clears its timer and the script sets
+   `process.exitCode`; and health alone is not evidence — a stale server keeps
+   answering while the new process dies of `EADDRINUSE`, so the step kills the port
+   owner (from `netstat`) and only reports success when the pid it started is the one
+   listening.
+6. **`npm test` and `verify:all` name the baseline directories.** `vitest run` with no
+   arguments would fold `test/vulns/` into the main gate, and those tests are meant to
+   fail on `main`.
+7. **Carmentis side (edits in `../carmentis`, not committed).** `[campaign.runtime]`
+   lets a campaign declare its own `up` / `restart` / `reset` / `health_path` steps;
+   defaults reproduce the PHP compose commands exactly, so that campaign is unchanged
+   (`testharness/config.py`, `lifecycle.py`, `campaign.py`, tests added — 104 pass).
+   New: `configs/TheBoardNode_campaign.toml` (35 entries generated from this repo's
+   catalog by `scratch/gen_campaign.py`) and `configs/TheBoardNode_template/`
+   (context doc, crawl scope, attack-creator config, `vulns/INDEX.md`). That campaign
+   sets `on_dirty = "fail"`: this target repo is under active development, so a dirty
+   tree must stop the sweep rather than be reset away. `testharness/AUTHORING_VULN_BRANCH.md`
+   gained the Node-target procedure, and `testharness/README.md` the runtime contract.

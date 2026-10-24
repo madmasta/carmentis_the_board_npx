@@ -10,6 +10,7 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { truncateAll } from '../helpers/db.mjs';
+import { declaredControls, isDeclared, sheetPath, slugOf, vulnSlug } from '../helpers/declared.mjs';
 import { agent, csrfToken, loginAs } from '../helpers/http.mjs';
 import { makeBoard, makeThread, makeUser } from '../helpers/users.mjs';
 import { root } from '../../src/db/admin.js';
@@ -49,6 +50,29 @@ function relative(path) {
 /** Strip comments so a commented-out payload does not fail a scan. */
 function code(source) {
   return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+}
+
+/**
+ * A control proof case, registered so the branch audit below can re-run it.
+ *
+ * On `main` this is an ordinary `it`. On a branch that declares the control away
+ * the case is skipped and `expected-downgrade: <ID>` is printed, which is what
+ * docs/04 section 6 asks for; the audit case then re-runs the same probe and
+ * fails if it still passes, so a sheet cannot claim a downgrade it did not make.
+ */
+const registry = new Map();
+
+function controlCase(controlId, label, fn) {
+  const id = controlId.toUpperCase();
+  const probes = registry.get(id) ?? [];
+  probes.push(fn);
+  registry.set(id, probes);
+
+  if (isDeclared(id)) console.log(`expected-downgrade: ${id}`);
+  // `skipIf`, not `skip`: the case exists and runs on main, and steps aside only on a
+  // branch that declares this control away (docs/04 section 6). The parity gate accepts
+  // the conditional form and still fails on an unconditional skip.
+  it.skipIf(isDeclared(id))(`${slugOf(id)} ${label}${isDeclared(id) ? ' (declared downgrade)' : ''}`, fn);
 }
 
 // Uppercase SQL only: the codebase writes SQL in upper case, and a
@@ -92,7 +116,7 @@ beforeEach(async () => {
 });
 
 describe('SQL and data layer', () => {
-  it('c-sql-1 no sql fragment is built by concatenation or interpolation', () => {
+  controlCase('C-SQL-1', 'no sql fragment is built by concatenation or interpolation', () => {
     const scanned = ['src/repositories', 'src/session', 'src/hooks'];
     const offenders = [];
 
@@ -106,7 +130,7 @@ describe('SQL and data layer', () => {
     expect(offenders, offenders.join('\n')).toEqual([]);
   });
 
-  it('c-sql-1 the seeded injection payloads change no result set', async () => {
+  controlCase('C-SQL-1', 'the seeded injection payloads change no result set', async () => {
     await makeUser('sql-rita', 'sql-rita@test.example', 'Passw0rdLong1');
     const open = await makeBoard('Open Board', true);
 
@@ -122,7 +146,7 @@ describe('SQL and data layer', () => {
 });
 
 describe('Output encoding and templates', () => {
-  it('c-xss-2 templates autoescape and |safe only ever wraps the markup renderer', () => {
+  controlCase('C-XSS-2', 'templates autoescape and |safe only ever wraps the markup renderer', () => {
     const templates = readdirSync(join(root(), 'templates'), { recursive: true })
       .filter((name) => String(name).endsWith('.njk'))
       .map((name) => join(root(), 'templates', String(name)));
@@ -142,7 +166,7 @@ describe('Output encoding and templates', () => {
     expect(views).toMatch(/autoescape:\s*true/);
   });
 
-  it('c-xss-3 the pinned CSP is on every response shape', async () => {
+  controlCase('C-XSS-3', 'the pinned CSP is on every response shape', async () => {
     const owner = await makeUser('csp-owner', 'csp-owner@test.example', 'Passw0rdLong1', 'admin');
     const boardId = Number((await makeBoard('CSP Board', true, Number(owner.id))).id);
     const threadId = Number(await makeThread(boardId, Number(owner.id), 'CSP thread', 'body'));
@@ -165,7 +189,7 @@ describe('Output encoding and templates', () => {
     expect(thread.text).not.toMatch(/href="javascript:/i);
   });
 
-  it('c-ssti-1 no template compilation, eval, Function or vm runs on request data', () => {
+  controlCase('C-SSTI-1', 'no template compilation, eval, Function or vm runs on request data', () => {
     const banned = [/nunjucks\.compile\s*\(/, /eval\s*\(/, /new\s+Function\s*\(/, /vm\.(runIn|compileFunction)/, /new\s+template\.Template/];
     const offenders = [];
 
@@ -186,7 +210,7 @@ describe('Output encoding and templates', () => {
 });
 
 describe('Authorization and bodies', () => {
-  it('c-acl-2 every route declares a guard and every admin route is admin-guarded', () => {
+  controlCase('C-ACL-2', 'every route declares a guard and every admin route is admin-guarded', () => {
     const missing = routes.filter((entry) => !GUARDS.has(entry.guard));
     expect(missing, JSON.stringify(missing)).toEqual([]);
 
@@ -213,7 +237,7 @@ describe('Authorization and bodies', () => {
     expect(unchecked, unchecked.join(', ')).toEqual([]);
   });
 
-  it('c-assign-1 request data is never Object.assign-ed onto a model or session', () => {
+  controlCase('C-ASSIGN-1', 'request data is never Object.assign-ed onto a model or session', () => {
     const pattern = /Object\.assign\s*\(\s*(ctx\.session|session|ctx\.user|user|ctx\.req\.fields|ctx\.req\.query)/g;
     const offenders = [];
 
@@ -226,7 +250,7 @@ describe('Authorization and bodies', () => {
 });
 
 describe('Headers and commands', () => {
-  it('c-hdr-1 the baseline header set is on a 200, a 404 and a 403', async () => {
+  controlCase('C-HDR-1', 'the baseline header set is on a 200, a 404 and a 403', async () => {
     const owner = await makeUser('hdr-owner', 'hdr-owner@test.example', 'Passw0rdLong1', 'admin');
     await makeUser('hdr-pleb', 'hdr-pleb@test.example', 'Passw0rdLong1');
     await makeBoard('Hdr Board', false, Number(owner.id));
@@ -252,7 +276,7 @@ describe('Headers and commands', () => {
     }
   });
 
-  it('c-cmd-1 the export path runs no shell, no exec and no string command', () => {
+  controlCase('C-CMD-1', 'the export path runs no shell, no exec and no string command', () => {
     const banned = [/shell\s*:\s*true/, /\bexec\s*\(/, /\bexecSync\s*\(/, /\bspawn\s*\(/, /child_process/];
     const offenders = [];
 
@@ -265,7 +289,7 @@ describe('Headers and commands', () => {
     expect(offenders, offenders.join('\n')).toEqual([]);
   });
 
-  it('c-crypto-1 no Math.random, md5 or sha1 in the security-relevant sources', () => {
+  controlCase('C-CRYPTO-1', 'no Math.random, md5 or sha1 in the security-relevant sources', () => {
     const banned = [/Math\.random\s*\(/, /createHash\s*\(\s*['"]md5['"]\s*\)/, /createHash\s*\(\s*['"]sha1['"]\s*\)/, /jsonwebtoken[^;]*algorithm[^;]*none/];
     const scanned = ['src/security', 'src/session', 'src/auth', 'src/hooks', 'src/repositories', 'src/http', 'src/xml'];
     const offenders = [];
@@ -283,7 +307,7 @@ describe('Headers and commands', () => {
 });
 
 describe('Configuration and disclosure', () => {
-  it('c-data-1 no secret is hardcoded in the shipped sources', () => {
+  controlCase('C-DATA-1', 'no secret is hardcoded in the shipped sources', () => {
     const banned = [/DB_ROOT_PASS\s*[:=]\s*['"][^'"#]+['"]/, /JWT_SECRET\s*[:=]\s*['"][^'"]{8,}['"]/, /ADMIN_PASSWORD\s*[:=]\s*['"][^'"]{4,}['"]/, /password\s*[:=]\s*['"](Passw0rd|TestPass|CorrectHorse)[^'"]*['"]/];
     const offenders = [];
 
@@ -304,7 +328,7 @@ describe('Configuration and disclosure', () => {
     expect(defaults).not.toMatch(/JWT_SECRET/);
   });
 
-  it('c-data-1 /health answers with a fixed body and nothing else', async () => {
+  controlCase('C-DATA-1', '/health answers with a fixed body and nothing else', async () => {
     const res = await (await agent()).get('/health');
 
     expect(res.status).toBe(200);
@@ -313,7 +337,7 @@ describe('Configuration and disclosure', () => {
     expect(res.text).not.toMatch(/DB_|PASS|SECRET|KEY/i);
   });
 
-  it('c-csrf-1 every state-changing route rejects a tokenless request', async () => {
+  controlCase('C-CSRF-1', 'every state-changing route rejects a tokenless request', async () => {
     const stateChanging = routes.filter((entry) => entry.method === 'POST');
     expect(stateChanging.length).toBeGreaterThan(10);
 
@@ -330,5 +354,39 @@ describe('Configuration and disclosure', () => {
       if (res.status !== 400) rejected.push(`${entry.method} ${path} -> ${res.status}`);
     }
     expect(rejected, rejected.join('\n')).toEqual([]);
+  });
+});
+
+describe('The branch contract itself', () => {
+  // The name carries no control slug on purpose: docs/04 section 6 removes the
+  // declared slugs from the run, and this case has to survive that to hold the
+  // sheet to account. It is a no-op on main, where nothing is declared.
+  it('a control the sheet declares removed is really removed', async () => {
+    const ids = declaredControls();
+    if (ids.length === 0) return;
+
+    const stillEnforced = [];
+    for (const id of ids) {
+      const probes = registry.get(id);
+      if (!probes) continue; // proved in the unit/integration file docs/03 names
+
+      let downgraded = false;
+      let evidence = '';
+      for (const probe of probes) {
+        try {
+          await probe();
+        } catch (error) {
+          downgraded = true;
+          evidence = String(error?.message ?? error).split('\n')[0];
+          break;
+        }
+      }
+      if (!downgraded) stillEnforced.push(id);
+    }
+
+    expect(
+      stillEnforced,
+      `${sheetPath(vulnSlug())} declares ${stillEnforced.join(', ')} removed, but the probe still passes on this branch`,
+    ).toEqual([]);
   });
 });

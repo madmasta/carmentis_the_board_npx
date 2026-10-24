@@ -23,7 +23,7 @@
     "verify:parity": "node tools/extract-parity.mjs --check",
     "verify:parity:tests": "node scripts/verify-parity-tests.mjs",
     "verify:spec": "node tools/check-spec.mjs",
-    "verify:all": "node tools/extract-parity.mjs --check && node tools/check-spec.mjs && node scripts/verify-parity-tests.mjs && vitest run",
+    "verify:all": "node tools/extract-parity.mjs --check && node tools/check-spec.mjs && node scripts/verify-parity-tests.mjs && npm test",
     "verify:branch": "node scripts/verify-branch.mjs",
     "verify:branches": "node tools/verify-all-branches.mjs"
   },
