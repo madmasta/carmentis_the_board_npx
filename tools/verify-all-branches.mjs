@@ -276,12 +276,34 @@ for (const row of rows) {
 }
 console.log(`\n${rows.length - failures}/${rows.length} rows PASS`);
 
+/**
+ * Drop a worktree's node_modules link before the worktree itself goes away.
+ *
+ * On Windows the link is a junction, and `git worktree remove --force` walks the
+ * directory tree — which follows the junction and deletes the shared install it
+ * points at. That is not a hypothetical: it emptied this repo's node_modules once.
+ * `rmSync` on the link itself unlinks the reparse point without touching the target.
+ */
+function unlinkNodeModules(worktree) {
+  try {
+    rmSync(join(worktree, 'node_modules'), { force: true });
+  } catch {
+    // A worktree whose link is already gone needs nothing before removal.
+  }
+}
+
 if (!keepWorktrees) {
   for (const slug of slugsToRun) {
     const path = join(root, '..', `wt-${slug}`);
-    if (existsSync(path) && statSync(path).isDirectory()) git(['worktree', 'remove', '--force', path]);
+    if (existsSync(path) && statSync(path).isDirectory()) {
+      unlinkNodeModules(path);
+      git(['worktree', 'remove', '--force', path]);
+    }
   }
-  if (existsSync(mainProbe)) git(['worktree', 'remove', '--force', mainProbe]);
+  if (existsSync(mainProbe)) {
+    unlinkNodeModules(mainProbe);
+    git(['worktree', 'remove', '--force', mainProbe]);
+  }
   git(['worktree', 'prune']);
 } else {
   console.log('worktrees kept (--keep)');

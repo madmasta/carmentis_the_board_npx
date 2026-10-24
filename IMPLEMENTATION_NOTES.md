@@ -450,3 +450,10 @@ asserts that a marker file *does not* exist for the negative cases. A shared nam
 makes one case's leftover decide the next case, and on Windows a file written by a
 just-exited child can survive a delete attempt, so each case writes its own
 `var/log/pwned-<case>.txt` and `afterAll` clears the prefix.
+
+**A worktree junction can delete the shared install.** The matrix runner gives each
+worktree a `node_modules` *junction* to the repo's install instead of 35 installs.
+`git worktree remove --force` walks the tree, follows the junction, and deletes what
+it points at — it emptied this repo's `node_modules` once (recovered with
+`npm ci`). The runner now unlinks the junction before removing a worktree; the rule
+for anyone doing it by hand is the same: remove the link first, then the worktree.
