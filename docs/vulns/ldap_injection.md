@@ -60,7 +60,7 @@ template and the controller are not part of this diff.
 ```
 GET /directory?mode=filter&q=%2A                (q=*)
 GET /directory?mode=filter&q=role%3A%2A         (q=role:*)
-GET /directory?mode=filter&q=%2Aa%2A            (q=*a*)
+GET /directory?mode=filter&q=%2Aer%2A           (q=*er*)
 ```
 
 `escapeLdap` is what keeps a caller's `*` from becoming the grammar's wildcard. On
@@ -81,8 +81,9 @@ parse error rather than a widened result.
   name, so a pure-symbol term is always the default username search.
 
 Expected effect: the directory lists all ten seeded personas for `q=*` and `q=role:*`,
-and a caller-chosen subset for `q=*a*` — the last one showing that the caller, not the
-renderer, now controls the pattern.
+and a caller-chosen subset for `q=*er*` (`insider_ian`, `outsider_olly`, `regular_rita` and
+`lurker_lena`, but not `troll_tom` or `owner_olivia`) — the last one showing that the
+caller, not the renderer, now controls the pattern.
 
 ## Differential oracle
 
@@ -95,8 +96,9 @@ renderer, now controls the pattern.
    user count in the database.
 4. Send `q=role:*` and confirm the same full row set through a different attribute,
    proving the wildcard — not the characters of the term — is doing the matching.
-5. Send `q=*a*` and assert the result is a caller-chosen subset (non-empty, fewer
-   than ten rows): the pattern structure itself is now the caller's.
+5. Send `q=*er*` and assert the result is a caller-chosen subset — non-empty, fewer
+   than ten rows, `insider_ian` present and `troll_tom` absent — and that `q=*zzzz*`
+   returns nobody. The pattern structure itself is now the caller's.
 6. Assert the response is `200` and carries no filter-error flash: the term was
    accepted as filter grammar.
 7. Assert the breakout did not widen what the directory can show — no password hash,
