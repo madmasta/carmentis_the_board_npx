@@ -330,7 +330,15 @@ export function parseFilter(text) {
       // value. A caller's own `*` reaches this point escaped, so it can never turn
       // into a wildcard of its own (C-DIR-1).
       const raw = readValue();
-      node = { kind: extensible || raw.includes('*') ? 'substring' : 'equal', attribute, value: unescapeLdap(raw) };
+      // `raw` keeps the grammar's own structure (which `*` were written unescaped);
+      // `value` is what an equality assertion compares against. Keeping both matters:
+      // an escaped `a` is a literal star in the data, never a wildcard.
+      node = {
+        kind: extensible || raw.includes('*') ? 'substring' : 'equal',
+        attribute,
+        raw,
+        value: unescapeLdap(raw),
+      };
     }
     if (peek() !== ')') throw new FilterError(INVALID_FILTER);
     at += 1;
@@ -351,12 +359,14 @@ function assertionMatches(node, doc) {
 
   if (node.kind === 'equal') return actual.toLowerCase() === node.value.toLowerCase();
 
-  const pattern = node.value
+  // The segments come from the raw text, so only the wildcard markers the grammar
+  // itself carries widen the match; each segment is then un-escaped and quoted as text.
+  const pattern = node.raw
     .split('*')
-    .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+    .map((part) => unescapeLdap(part).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
     .join('.*');
-  const head = node.value.startsWith('*') ? '' : '^';
-  const tail = node.value.endsWith('*') ? '' : '$';
+  const head = node.raw.startsWith('*') ? '' : '^';
+  const tail = node.raw.endsWith('*') ? '' : '$';
   return new RegExp(`${head}${pattern}${tail}`, 'i').test(actual);
 }
 

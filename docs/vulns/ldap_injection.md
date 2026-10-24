@@ -40,7 +40,7 @@ caller's brackets, pipes and stars as grammar.
 
 | Control | Control text (summary) | How the diff removes it |
 |---|---|---|
-| `C-DIR-1` | Filter tokens parsed by a tokenizer with a field allowlist and escaped values | `filterComponent` places the token value in the filter unescaped; the tokenizer and the attribute allowlist stay, which is what makes the payload a single whitespace-free term |
+| `C-DIR-1` | Filter tokens parsed by a tokenizer with a field allowlist and escaped values | `filterComponent` places the token value in the filter unescaped. The tokenizer and the attribute allowlist stay; what goes is the RFC 4515 escaping, the only thing keeping a caller's `*`, `(`, `)`, `|` and `&` from meaning something to `parseFilter` |
 
 ## Minimal diff
 
@@ -58,26 +58,31 @@ template and the controller are not part of this diff.
 ## Payload sketch
 
 ```
-GET /directory?mode=filter&q=%2A%29%7C%28username%3D%2A%29%28x%3D%2A
-GET /directory?mode=filter&q=%2A%29%7C%28email%3D%2A%29
+GET /directory?mode=filter&q=%2A                (q=*)
+GET /directory?mode=filter&q=role%3A%2A         (q=role:*)
+GET /directory?mode=filter&q=%2Aa%2A            (q=*a*)
 ```
 
-which is `q=*)|(username=*)(x=*)` and `q=*)|(email=*)`.
+`escapeLdap` is what keeps a caller's `*` from becoming the grammar's wildcard. On
+`main` the term `*` renders as `(|(username=*a*)(email=*a*))`, and the evaluator —
+which reads the escape, not the character — looks for a literal star and finds nobody.
+On the branch the same term renders as `(|(username=***)(email=***))`: the renderer's
+own stars and the caller's star fuse into one match-all pattern, and the directory
+answers with everyone.
 
-The rendered filter becomes
-`(|(username=**) | (username=*)(x=*) | (email=**) | (username=*)(x=*))` — the
-`username=*` component supplied by the caller, not by the renderer, matches every
-directory entry.
+Three constraints follow from the tokenizer and the parser staying in place, and they
+are why the payload is a wildcard rather than the textbook `*)|(username=*)(x=*)`:
+this evaluator refuses filter text that is not balanced, so an unclosed component is a
+parse error rather than a widened result.
 
-Two constraints the payload has to respect, both of which follow from the
-tokenizer staying in place:
+- no whitespace and no comma, because the tokenizer splits the term on those;
+- no unclosed component, because `parseFilter` rejects it — on the branch too;
+- no `field op` prefix unless one is meant: `(`, `)` and `*` cannot start a field
+  name, so a pure-symbol term is always the default username search.
 
-- no whitespace and no comma, because those split the term into tokens;
-- no `field op` prefix, because that would be read as an explicit-field token —
-  automatic here, since `(`, `)` and `*` cannot start a field name.
-
-Expected effect: the directory lists all ten seeded personas regardless of the
-search term.
+Expected effect: the directory lists all ten seeded personas for `q=*` and `q=role:*`,
+and a caller-chosen subset for `q=*a*` — the last one showing that the caller, not the
+renderer, now controls the pattern.
 
 ## Differential oracle
 
@@ -85,19 +90,22 @@ search term.
 
 1. Sign in as `outsider_olly` (the persona with the fewest privileges).
 2. `GET /directory?mode=filter&q=owner` returns 1–3 rows, including `owner_olivia`.
-3. Send the term `*)|(username=*)(x=*` (URL-encoded) and assert all ten rows are
-   listed, with `banned_bob` and `owner_olivia` among them.
-4. Repeat with the term `*)|(email=*)` and confirm the same full row set, proving
-   the match comes from injected filter syntax rather than from the literal
-   characters of the term.
-5. Assert the response is `200` and that the page carries no filter-error flash:
-   on the branch the injected text parses as grammar instead of being refused.
-6. Assert the breakout did not widen what the directory can show — no password
-   hash and no e-mail address in the body.
+3. Send `q=*` (URL-encoded) and assert all ten rows are listed, with `banned_bob`,
+   `owner_olivia` and `outsider_olly` among them, and that the row count equals the
+   user count in the database.
+4. Send `q=role:*` and confirm the same full row set through a different attribute,
+   proving the wildcard — not the characters of the term — is doing the matching.
+5. Send `q=*a*` and assert the result is a caller-chosen subset (non-empty, fewer
+   than ten rows): the pattern structure itself is now the caller's.
+6. Assert the response is `200` and carries no filter-error flash: the term was
+   accepted as filter grammar.
+7. Assert the breakout did not widen what the directory can show — no password hash,
+   no e-mail address, no ban reason — and that the plain listing mode is unaffected:
+   the same term there matches nobody, and `?role=admin` still filters.
 
-On `main` step 3 must fail: the term is escaped to
-`\29\7c\28username=\2a\29\28x=\2a` inside both assertions, matches nobody, and the
-page reads `Nobody matches that filter.` — so the row-count assertion, not a status
+On `main` steps 3, 4 and 5 must fail: the term is escaped (`a` inside both
+assertions), the evaluator looks for a literal star, nobody matches, and the page
+reads `Nobody matches that filter.` — so the row-count assertion, not a status
 difference, is what makes this differential.
 
 ## Must-not-break invariants

@@ -191,6 +191,15 @@ describe('directory advanced filter (C-DIR-1, C-DIR-2)', () => {
     );
   });
 
+  // The one-character version of the same rule: `*` is the grammar's wildcard, and
+  // on this path the caller's `*` reaches the evaluator escaped, so it is data.
+  // `vuln/ldap_injection` removes the escaping, and this becomes a match-all search.
+  it('c-dir-1 a wildcard term stays literal in filter mode', async () => {
+    expect((await searchDocs(docs, '*')).users).toEqual([]);
+    expect((await searchDocs(docs, 'role:*')).users).toEqual([]);
+    expect((await searchDocs(docs, 'o*i')).users).toEqual([]);
+  });
+
   it('c-dir-1 a filter breakout is matched as text and finds nobody', () => {
     const hits = (term) => docs.filter((doc) => evalFilter(renderFilter(term), doc)).map((doc) => doc.username);
 
