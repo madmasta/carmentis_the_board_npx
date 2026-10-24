@@ -202,6 +202,16 @@ if (!existsSync(join(mainProbe, 'package.json'))) {
     process.exit(2);
   }
 }
+// The differential is only a differential against *current* main, so the probe
+// worktree is re-pointed at the base branch's tip on every run rather than trusted
+// to be where it was left.
+if (existsSync(mainProbe)) {
+  const refreshed = git(['-C', mainProbe, 'checkout', '--force', '--detach', 'main']);
+  if (refreshed.status !== 0) {
+    console.error(`cannot re-point the clean-main probe worktree at main: ${refreshed.err || refreshed.out}`);
+    process.exit(2);
+  }
+}
 if (!provideEnv(mainProbe) || !linkNodeModules(mainProbe)) {
   console.error('the clean-main probe worktree is not runnable (see the line above).');
   process.exit(2);
