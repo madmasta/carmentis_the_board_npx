@@ -18,65 +18,97 @@ from the application — including fake security events.
 
 ## Affected surface
 
-- Route: every route logs, so any request works; the oracle uses `GET /` and
-  `GET /health`
-- Parameter: the request target, as logged after percent-decoding (the `User-Agent`
-  header is logged too but `node:http` will not carry a raw newline in a header,
-  so the path is the reachable vector)
+- Route: `GET /` logs, and so does every other route — the oracle sends `GET /
+  %0A…` (an unmatched target), which is logged as the `404` template and disturbs
+  nothing else
+- Parameter: the request target, percent-decoded by the logger. The `User-Agent`
+  header is the second logged field on the branch; `node:http` refuses a raw newline
+  in a header value, so the header is a tampering vector (control characters,
+  spoofed fields) and the path is the line-splitting vector.
 - Prerequisites: `anon` profile
 - Reachability: every request is logged
 
 ## Sink
 
-`src/http/server.js` — `logRequest(req, res)`. For readable logs the app records
-the **decoded** request target (`decodeURIComponent(url.split('?')[0])`). On
-`main` every request-derived field then passes `escapeLogValue()` (CR/LF and
-other control characters replaced with `\xNN`, values truncated to 200
-characters). The branch drops the escaping for the decoded target and the
-`User-Agent`.
+`src/http/server.js` — `logRequest(method, routeTemplate, statusCode, session)` is
+called on every exit path of the handler (matched route, 404, host rejection, static
+file, CSRF rejection, guard halt, unhandled error). What it writes is the **matched
+route template** (`/board/:id`, `404`, `host-rejected`), never the raw request target,
+and the record goes through `log()` in `src/lib/log.js`, which runs every field
+through `sanitize()`: control characters flattened, whitespace collapsed, length
+bounded to 400. There is therefore no request-controlled string in the log that can
+contain a newline.
 
+The branch adds the caller-controlled fields and writes the record itself, bypassing
+`log()`/`sanitize()` for that line:
+
+```
+`[${isoTimestamp()}] request ${method} ${routeTemplate} -> ${statusCode} ` +
+`uid=${session?.userId ?? '-'} path=${decodeURIComponent(pathname)} ua=${ua}`
+```
+
+appended straight to `logPath()`. The percent-decoded target is where the newline
+comes from; the `User-Agent` arrives raw as well.
 ## Baseline control removed
 
 | Control | Control text (summary) | How the diff removes it |
 |---|---|---|
-| `C-INFO-3` | One line per record; user values newline-stripped and truncated | the escaping call is removed from the UA and target fields |
+| `C-INFO-3` | One line per record; user values newline-stripped and truncated | the request record is written to `logPath()` directly, so `sanitize()` no longer touches it, and the decoded target and `User-Agent` are interpolated raw |
 
 ## Minimal diff
 
 Files touched:
 
-- `src/http/server.js` — interpolate the decoded request target and
-  `req.headers['user-agent']` into the log line without `escapeLogValue`.
+- `src/http/server.js` — give `logRequest` the incoming request, interpolate the
+  percent-decoded pathname and `req.headers['user-agent']` into the record, and append
+  that record to `logPath()` with `appendFileSync` instead of routing it through
+  `logInfo`/`sanitize`.
 - `test/vulns/log_injection.test.mjs` — new file.
 
 ## Payload sketch
 
 ```
 GET /%0A%5BSECURITY%5D%20FORGED-a1b2c3%20login%20throttle%20BYPASSED%20email=owner@theboard.example%20ip=127.0.0.1
-User-Agent: probe
+User-Agent: probe/1.0
 ```
 
-The percent-encoded `%0A` decodes inside the logger, so the log gains a second
-physical line that carries the application's own `[SECURITY]` prefix shape.
+The path is unmatched, so the record's own route template is `404` and the request
+changes nothing else. `%0A` is decoded inside the logger, so the file gains a second
+physical line that opens at column 0 with the application's own `[SECURITY]` prefix
+shape — the same prefix the login-throttle bypass record uses (`docs/03` C-INFO-3).
 
-Expected effect: `var/log/app.log` gains lines that are indistinguishable from the
-application's own security banner lines.
+The same record also carries an unescaped `User-Agent`, which is how a caller can
+plant arbitrary field-like text (`path=… ua=… uid=…`) into a record the application
+wrote.
+
+Expected effect: `app.log` (wherever `APP_LOG` points) gains a line the application
+never writes, byte-identical in shape to its own security banner lines.
 
 ## Differential oracle
 
 `test/vulns/log_injection.test.mjs`:
 
-1. Truncate `var/log/app.log` through the test helper and record its size.
-2. Send `GET /%0A…FORGED-<random>…` (the payload above) with the marker in the
+1. Truncate the log through `clearForTests()` and note where it ends; read it back
+   through `logPath()`, so the assertion follows `APP_LOG` rather than guessing.
+2. Send two ordinary requests (a `GET /` and a `GET /health`) and assert the log holds
+   exactly two new request records — one physical line each.
+3. Send the percent-encoded payload above with a random `FORGED-<hex>` marker on the
    injected second line.
-3. Read the tail of the log and assert a line exists that starts with
-   `FORGED-` at column 0 — i.e. a record the application itself never writes.
-4. Assert the forged record's timestamp prefix is absent, proving the second line
-   is attacker text and not an application record.
+4. Assert a line exists that **starts** with `[SECURITY] FORGED-` — a record opening at
+   column 0 that the application never writes.
+5. Assert that line carries no `[…]` timestamp prefix: it is attacker text, not an
+   application record that happens to mention the marker.
+6. Assert the request still produced its own honest record (`404` as the route
+   template), so the forgery is an addition rather than a replacement.
+7. Sign in as a persona and assert the log still contains no session id, no password
+   hash and no OTP code: the branch removes the newline rule, not the
+   sensitive-field rule, and this case is what proves the difference.
+8. Assert a `User-Agent` value is interpolated without neutralization — the record's
+   `ua=` field contains the caller's characters exactly.
 
-On `main` this test must fail because the injected newline is written as
-`\x0A`, leaving exactly one physical line containing the escaped marker.
-
+On `main` steps 4, 5, 6 and 8 must fail: the target is not logged at all (the route
+template is), the record is sanitized, and no `ua=` field exists — so no line can
+start with the marker and the injected newline never reaches the file.
 ## Must-not-break invariants
 
 - The request logger still emits exactly one record per request for normal
