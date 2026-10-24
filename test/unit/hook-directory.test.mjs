@@ -4,7 +4,18 @@
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { truncateAll, row } from '../helpers/db.mjs';
 import { makeUser } from '../helpers/users.mjs';
-import { FilterError, PROJECTION, buildFilter, list, tokenize } from '../../src/hooks/directory.js';
+import {
+  FilterError,
+  PROJECTION,
+  buildFilter,
+  escapeLdap,
+  evalFilter,
+  list,
+  parseFilter,
+  renderFilter,
+  searchDocs,
+  tokenize,
+} from '../../src/hooks/directory.js';
 
 beforeAll(async () => {
   await truncateAll();
@@ -119,5 +130,100 @@ describe('staff directory filter (C-DIR-1, C-DIR-2)', () => {
 
     expect(await list('%')).toEqual([]);
     expect(await list('a_b')).toEqual([]);
+  });
+});
+
+// The advanced search — `GET /directory?mode=filter`, docs/02 §7 — is the path where
+// C-DIR-1's escaping rule does the work: the filter text is rendered from tokenizer
+// tokens, every attribute name comes from the allowlist, and every value is escaped,
+// so a caller's `(`, `)`, `|`, `&` or `*` stays data inside one assertion. That rule
+// is what `vuln/ldap_injection` declares away, so the cases proving it carry the
+// control slug (docs/03 skip granularity, docs/04 §6).
+describe('directory advanced filter (C-DIR-1, C-DIR-2)', () => {
+  const docs = [
+    {
+      id: 1,
+      username: 'owner_olivia',
+      email: 'owner.olivia@example.invalid',
+      role: 'admin',
+      created_at: '2024-01-02 00:00:00',
+      post_count: 4,
+    },
+    {
+      id: 2,
+      username: 'regular_rita',
+      email: 'regular.rita@example.invalid',
+      role: 'user',
+      created_at: '2024-03-04 00:00:00',
+      post_count: 1,
+    },
+    {
+      id: 3,
+      username: 'banned_bob',
+      email: 'banned.bob@example.invalid',
+      role: 'user',
+      created_at: '2024-05-06 00:00:00',
+      post_count: 0,
+    },
+  ];
+
+  it('c-dir-1 the filter text is rendered from tokens and the attribute allowlist', () => {
+    expect(renderFilter('olivia')).toBe('(|(username=*olivia*)(email=*olivia*))');
+    expect(renderFilter('role:admin')).toBe('(role=*admin*)');
+    expect(renderFilter('role=admin')).toBe('(role=admin)');
+    expect(renderFilter('role!=admin')).toBe('(!(role=admin))');
+    expect(renderFilter('olivia role:admin')).toBe('(&(|(username=*olivia*)(email=*olivia*))(role=*admin*))');
+  });
+
+  it('c-dir-1 every value placed in the filter is escaped', () => {
+    const BS = String.fromCharCode(92); // a backslash, spelled without one
+    const expected = (body) => `(|(username=*${body}*)(email=*${body}*))`;
+    const STAR = BS + '2a', RP = BS + '29', PIPE = BS + '7c', LP = BS + '28', AMP = BS + '26', BSL = BS + '5c';
+
+    expect(escapeLdap('*)|(x=*')).toBe(STAR + RP + PIPE + LP + 'x=' + STAR);
+    expect(escapeLdap('a&b')).toBe('a' + AMP + 'b');
+    expect(escapeLdap('a' + BS + 'f')).toBe('a' + BSL + 'f');
+
+    // The whole renderer path: the breakout term is escaped inside both assertions, so the
+    // filter the evaluator sees is the filter the renderer wrote, not the caller's.
+    expect(renderFilter('*)|(username=*)(x=*')).toBe(
+      expected(STAR + RP + PIPE + LP + 'username=' + STAR + RP + LP + 'x=' + STAR),
+    );
+  });
+
+  it('c-dir-1 a filter breakout is matched as text and finds nobody', () => {
+    const hits = (term) => docs.filter((doc) => evalFilter(renderFilter(term), doc)).map((doc) => doc.username);
+
+    expect(hits('*)|(username=*)(x=*')).toEqual([]);
+    expect(hits('*)|(email=*)')).toEqual([]);
+    expect(hits('olivia')) // the same grammar, used honestly
+      .toEqual(['owner_olivia']);
+  });
+
+  it('the advanced search returns the users the filter asks for, in five columns', async () => {
+    const byName = await searchDocs(docs, 'olivia');
+    expect(byName.users.map((user) => user.username)).toEqual(['owner_olivia']);
+    expect(Object.keys(byName.users[0]).sort()).toEqual([...PROJECTION].sort());
+    expect(byName.users[0]).not.toHaveProperty('email');
+    expect(byName.users[0]).not.toHaveProperty('password_hash');
+
+    const byRole = await searchDocs(docs, 'role:admin');
+    expect(byRole.users.map((user) => user.username)).toEqual(['owner_olivia']);
+
+    const combined = await searchDocs(docs, 'bob role:user');
+    expect(combined.users.map((user) => user.username)).toEqual(['banned_bob']);
+  });
+
+  it('the filter grammar is parsed to a tree, and junk is refused', () => {
+    expect(() => parseFilter('username=1')).toThrow(/Invalid filter expression/);
+    expect(() => parseFilter('(|(a=1)(b=2')).toThrow(/Invalid filter expression/);
+    expect(() => parseFilter('(username=x)(role=user)')).toThrow(/Invalid filter expression/);
+    expect(() => renderFilter('nickname:zz')).toThrow(/Unknown filter field: nickname/);
+    expect(() => renderFilter('posts>2')).toThrow(/not available in filter mode/);
+  });
+
+  it('c-dir-2 a term that is not a primitive never reaches the renderer', () => {
+    expect(() => renderFilter({ ne: 'x' })).toThrow(/plain text/);
+    expect(() => renderFilter(['olivia'])).toThrow(/plain text/);
   });
 });

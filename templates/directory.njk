@@ -9,15 +9,27 @@
             <option value="user" {{ 'selected' if role == 'user' }}>user</option>
             <option value="admin" {{ 'selected' if role == 'admin' }}>admin</option>
         </select>
+        <select name="mode">
+            <option value="list" {{ 'selected' if mode != 'filter' }}>free text</option>
+            <option value="filter" {{ 'selected' if mode == 'filter' }}>filter syntax</option>
+        </select>
         <button type="submit" class="btn btn-sm">Filter</button>
     </form>
     {% if filter_error %}
         <p class="flash flash-error">{{ filter_error }}</p>
     {% endif %}
-    <p class="hint">
-        Filter tokens are matched field by field — <code>username:ali</code>, <code>role:admin</code>,
-        <code>joined:2024</code>. Values are always compared as text.
-    </p>
+    {% if mode == 'filter' %}
+        <p class="hint">
+            Filter syntax mode: the term is read as one filter expression —
+            <code>owner</code>, <code>role:admin</code>, <code>posts&gt;2</code>. Brackets, pipes and
+            stars you typed are matched as text, never as syntax.
+        </p>
+    {% else %}
+        <p class="hint">
+            Filter tokens are matched field by field — <code>username:ali</code>, <code>role:admin</code>,
+            <code>joined:2024</code>. Values are always compared as text.
+        </p>
+    {% endif %}
 </section>
 
 <section class="panel">

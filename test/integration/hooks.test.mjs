@@ -232,7 +232,9 @@ describe('staff directory (GET /directory, POST /directory/search)', () => {
     expect(junk.text).toContain('Unknown role filter.');
   });
 
-  it('the saved search shows the expression it built, with the value bound', async () => {
+  // The slug marks what this case proves: C-XPATH-1 is the "input never reaches the
+  // expression text" rule, and `vuln/xpath_injection` declares it away (docs/04 §6).
+  it('c-xpath-1 the saved search shows the expression it built, with the value bound', async () => {
     const http = await signIn();
     const res = await postForm(http, '/directory/search', { q: 'role:user username:hook' }, '/directory');
 
@@ -244,6 +246,29 @@ describe('staff directory (GET /directory, POST /directory/search)', () => {
     // An XPath metacharacter in the value is a plain substring test.
     const hostile = await postForm(http, '/directory/search', { q: "username:hook')or(@role=" }, '/directory');
     expect(bodyOf(hostile.text)).toBe('');
+  });
+
+  // The advanced search (`mode=filter`) is the path whose escaping rule C-DIR-1 pins;
+  // `vuln/ldap_injection` declares that rule away, so this case carries the slug.
+  it('c-dir-1 filter mode keeps the caller’s brackets out of the filter grammar', async () => {
+    const http = await signIn();
+
+    const plain = await http.get('/directory?mode=filter&q=hook-pleb');
+    expect(plain.status).toBe(200);
+    expect(bodyOf(plain.text)).toContain('hook-pleb');
+    expect(bodyOf(plain.text)).not.toContain('hook-admin');
+
+    for (const term of ['*)|(username=*)(x=*)', '*)|(email=*)']) {
+      const breakout = await http.get(`/directory?mode=filter&q=${encodeURIComponent(term)}`);
+      expect(breakout.status).toBe(200);
+      expect(breakout.text).toContain('Nobody matches that filter');
+      expect(bodyOf(breakout.text), `${term} must be matched as text`).toBe('');
+    }
+
+    // The bare term searches both text fields, which is how the injected `(email=*)`
+    // arm would have worked had the brackets been allowed to mean anything.
+    const byEmail = await http.get('/directory?mode=filter&q=' + encodeURIComponent('hook-pleb@test.example'));
+    expect(bodyOf(byEmail.text)).toContain('hook-pleb');
   });
 });
 

@@ -56,7 +56,7 @@ describe('saved xpath search (C-XPATH-1)', () => {
     expect(() => compile([{ field: 'posts', op: '=', value: 'lots' }])).toThrow(/must be a number/);
   });
 
-  it('several tokens combine with and', () => {
+  it('c-xpath-1 several tokens combine with and', () => {
     const result = search(ROWS, 'role:user bob');
     expect(names(result)).toEqual(['bob']);
     expect(result.expression).toBe('/directory/user[contains(@role, $v0) and contains(@username, $v1)]');

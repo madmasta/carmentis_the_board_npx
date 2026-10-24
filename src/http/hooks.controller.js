@@ -8,7 +8,7 @@ import * as boards from '../repositories/board.repository.js';
 import * as postsRepo from '../repositories/post.repository.js';
 import * as users from '../repositories/user.repository.js';
 import { exportBoard, importBoard } from '../xml/bridge.js';
-import { list as directoryList } from '../hooks/directory.js';
+import { directoryDocs, list as directoryList, searchDocs } from '../hooks/directory.js';
 import { search as xpathSearch } from '../hooks/xpath.js';
 import { exportThread } from '../hooks/export.js';
 import { inspect, readStored, removeStored, resolveStored, store, typeOfStored } from '../hooks/upload.js';
@@ -188,16 +188,21 @@ export async function directory(ctx) {
   requireLogin(ctx);
   const q = String(ctx.req.query.q ?? '');
   const role = String(ctx.req.query.role ?? '');
+  // `mode=filter` reads the term as filter syntax instead of free text (docs/02
+  // section 7). Any other value — including a missing one — is the plain listing;
+  // an unrecognised mode is ignored rather than rejected, like any other unknown
+  // query parameter.
+  const mode = String(ctx.req.query.mode ?? '').trim() === 'filter' ? 'filter' : 'list';
 
   let rows = [];
   let error = null;
   try {
-    rows = await directoryList(q, role);
+    rows = mode === 'filter' ? (await searchDocs(await directoryDocs(), q)).users : await directoryList(q, role);
   } catch (problem) {
     error = problem.message;
   }
 
-  view(ctx, 'directory', { title: 'Staff directory', people: rows, q, role, filter_error: error });
+  view(ctx, 'directory', { title: 'Staff directory', people: rows, q, role, mode, filter_error: error });
 }
 
 /** POST /directory/search — the saved XPath search over the same rows. */
