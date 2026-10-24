@@ -24,12 +24,23 @@ the host process run an additional command.
 
 ## Sink
 
-`src/hooks/export.js` — `renderWith(markdownFile, renderer)`. On `main` the
-formatter runs in-process and `format` comes from a fixed allowlist
-(`md`, `txt`); no child process exists. The branch adds a `renderer` parameter
-and shells out: `` exec(`node src/hooks/renderers/${renderer}.js ${outFile}`) ``
-through `child_process.exec`, which on Windows is `cmd.exe` and on POSIX a shell.
+`src/hooks/export.js` — `exportThread(thread, replies, format)` is a pure function:
+the format name selects one of two formatter functions from a fixed `Map`, and there
+is no child process, no command string and no external binary anywhere in the app.
+The branch adds a `renderer` parameter that, when present, writes the rendered
+markdown to a temporary file under `var/tmp/` and shells out to a renderer script:
 
+```
+exec(`node src/hooks/renderers/${renderer}.js ${outFile}`)
+```
+
+through `child_process.exec` — `cmd.exe /c` on Windows, `/bin/sh -c` elsewhere. The
+renderer name is interpolated into the command line, and `exec` runs the line through
+a shell, so a shell separator in the parameter ends the first command and starts a
+second. The asynchronous wrapper is `exportThreadWithRenderer`, which the export
+handler calls when the query carries `renderer`; without it the handler keeps calling
+the synchronous `exportThread`, which is why the unchanged formats still produce
+byte-identical output.
 ## Baseline control removed
 
 | Control | Control text (summary) | How the diff removes it |
@@ -40,41 +51,65 @@ through `child_process.exec`, which on Windows is `cmd.exe` and on POSIX a shell
 
 Files touched:
 
-- `src/hooks/export.js` — import `exec` from `node:child_process`, add
-  `renderWith()` with the interpolated command string, and call it when the
-  request carries `renderer`.
-- `src/hooks/renderers/inline.js` — new trivial formatter (the file the command
-  line names).
+- `src/hooks/export.js` — import `exec` from `node:child_process`; add
+  `renderWith()` (the interpolated command string) and
+  `exportThreadWithRenderer()` (the awaitable wrapper the handler uses).
+- `src/hooks/renderers/inline.js` — new trivial renderer: the file the command line
+  names, which reads the export file back and writes it out again.
+- `src/http/hooks.controller.js` — read `renderer` from the query string and call
+  `exportThreadWithRenderer` when it is present.
 - `test/vulns/command_injection.test.mjs` — new file.
 
 ## Payload sketch
 
 ```
-GET /thread/1/export?format=md&renderer=inline;echo%20PWNED-CMDINJ>%20var/log/pwned.txt
-GET /thread/1/export?format=md&renderer=inline&x=%26%26%20ping%20-n%205%20127.0.0.1
+GET /thread/:id/export?format=md&renderer=inline&echo+PWNED-CMDINJ%3E%20%2Fabs%2Fpath%2Fto%2Fvar%2Flog%2Fpwned.txt+%23
 ```
 
-The first payload leaves a file; the second is the time-based probe (about four
-extra seconds) for scanners that only compare responses.
+i.e. `renderer=inline&echo PWNED-CMDINJ> /abs/path/to/var/log/pwned.txt #`.
 
-Expected effect: the export still renders, and `var/log/pwned.txt` appears on disk
-containing `PWNED-CMDINJ`.
+Three details make the payload portable across the two shells `exec` may use, and
+they are worth recording because a scanner will not find them by itself:
+
+- `&` separates commands on both `cmd.exe` and POSIX shells; `;` separates
+  arguments on `cmd.exe`, so a `;` payload produces a `node` invocation with extra
+  arguments rather than a second command.
+- The command line the app writes ends the renderer name with `.js`, so anything
+  following the injected command inherits that `.js` as a token. A trailing `#`
+  makes it a comment on a POSIX shell and a harmless extra word for `echo` on
+  `cmd.exe`; either way the redirect target is the path the payload names.
+- The redirect uses an absolute path: `exec` inherits the app's working directory,
+  and the test asserts the file at the same absolute path it embedded.
+
+Expected effect: the export still renders (the first command's failure is ignored),
+and `<marker>` appears on disk containing `PWNED-CMDINJ`. The time-based variant —
+`renderer=inline&ping -n 4 127.0.0.1 #`, or `-n`/`-c` per platform — is the fallback
+for a probe that can only compare response times; this sheet's oracle uses the file
+because it is unambiguous.
 
 ## Differential oracle
 
 `test/vulns/command_injection.test.mjs`:
 
-1. Delete `var/log/pwned.txt` if present; sign in as `insider_ian`.
-2. Send the payload against a thread in General (fixture thread id from the seed
-   helper).
-3. Assert the response is `200` and the export body is returned.
-4. Wait up to 3 s for `var/log/pwned.txt` to exist and contain `PWNED-CMDINJ`;
-   assert it does, then delete the file in `afterAll`.
-5. Assert a plain `renderer=inline` request produced no such file.
+1. Remove the marker file if it exists; sign in as `insider_ian`; create a board and
+   a thread that the persona can export (the suite's `makeBoard`/`makeThread`
+   helpers), so the fixture personas stay untouched.
+2. Request `?format=md&renderer=inline` first — a renderer name with no separator —
+   and assert the export returns `200` with the markdown body, and that no marker
+   file exists afterwards.
+3. Send the separator payload against the same thread, assert the response is `200`
+   and still carries the rendered thread title, then assert the marker file exists
+   and contains `PWNED-CMDINJ` (the export awaits the subprocess, so no polling is
+   needed; the case still allows a short grace period for the filesystem).
+4. Remove the marker, request `?format=zsh` and assert `400 Unknown export format.`:
+   the `format` allowlist is intact, and only `renderer` is trusted.
+5. In `afterAll`, delete the marker file and the temporary export file the branch
+   writes under `var/tmp/`. Nothing outside `var/` is written by the oracle.
 
-On `main` this test must fail because the `renderer` parameter is ignored, no
-child process is ever spawned, and the marker file never appears.
-
+On `main` step 3 must fail: the `renderer` parameter is not read, `exportThread` is
+the only formatter, no child process exists, and the marker file never appears. Steps
+2, 4 and the status assertions pass on both, which is what keeps the downgrade
+scoped to the one parameter.
 ## Must-not-break invariants
 
 - `GET /thread/:id/export?format=md` and `?format=txt` still return the same
