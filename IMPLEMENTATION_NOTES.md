@@ -431,3 +431,22 @@ instead of `` `vuln/sqli` ``; worktrees need `.env` copied in (it is gitignored,
 the app refuses to start without it, which surfaced as a vite reporter crash rather
 than a clean message); and "did the probe collect any tests" has to match vitest's
 summary line (`Tests  6 failed | 2 passed (8)`), not a phrase vitest never prints.
+
+**Source-scan blindness (found while building `vuln/command_injection`).**
+`test/security/controls.test.mjs#sourceFiles` joined the root onto paths the
+recursion had already made absolute, so `join(root(), 'C:/abs/path')` named a
+directory that does not exist and every recursive call returned nothing: the scans
+over `src` were reading only the three top-level files. That is why the C-CMD-1
+"no shell anywhere" probe passed on a branch that imports `node:child_process` and
+calls `exec`, and why the branch audit case is the thing that finally noticed.
+Fixed with `isAbsolute(dir) ? dir : join(root(), dir)`. The C-CMD-1 patterns needed
+tightening in the same commit: `exec\s*\(` matched `pattern.exec(...)` all over the
+codebase, so the scan could not be switched on as written. Two consequences for the
+remaining branches: the source-level controls are now genuinely enforced, and a sheet
+that claims a source-level downgrade it did not make will fail the run.
+
+**Marker files as oracles need one path per case.** The command-injection oracle
+asserts that a marker file *does not* exist for the negative cases. A shared name
+makes one case's leftover decide the next case, and on Windows a file written by a
+just-exited child can survive a delete attempt, so each case writes its own
+`var/log/pwned-<case>.txt` and `afterAll` clears the prefix.
