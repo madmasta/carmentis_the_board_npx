@@ -124,8 +124,10 @@ request data. User text is passed as a variable only.
 session-scoped lifetime; ids from `crypto.randomBytes(16)`; unknown ids are never
 adopted.
 *Location:* `src/session/store.js`, `src/http/headers.js`.
-*Proof:* `test/integration/session.test.mjs#c-sess-1` (cookie attributes and id
-entropy; the cases carrying `c-sess-2` in the same file are separate cases).
+*Proof:* `test/integration/session.test.mjs` — the two never-adopt cases carry the
+`c-sess-1` slug (`an unknown presented id is never adopted`, `a malformed presented id is
+ignored, not looked up`); the cookie-attribute and id-entropy cases are named for their
+own clause and keep running on a branch that declares the adoption clause away.
 
 **C-SESS-2 — Regeneration and store hygiene.**
 Id regenerated on login, MFA completion, privilege change and clear; old row

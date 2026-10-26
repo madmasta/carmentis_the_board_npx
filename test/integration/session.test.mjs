@@ -24,8 +24,8 @@ beforeEach(async () => {
   await truncateAll();
 });
 
-describe('c-sess-1 cookie and session-id discipline', () => {
-  it('c-sess-1 the session cookie carries the pinned attributes and nothing else', async () => {
+describe('cookie and session-id discipline (C-SESS-1)', () => {
+  it('the session cookie carries the pinned attributes and nothing else', async () => {
     const req = fakeReq({ cookies: {} });
     const res = fakeRes();
 
@@ -42,7 +42,7 @@ describe('c-sess-1 cookie and session-id discipline', () => {
     expect(cookie.split(';')[0]).toMatch(/^theboard_session=[0-9a-f]{32}$/);
   });
 
-  it('c-sess-1 Secure is added only for an https socket', async () => {
+  it('Secure is added only for an https socket', async () => {
     const plain = fakeRes();
     const secure = fakeRes();
     await store.save(await store.start(fakeReq({ cookies: {} }), plain), plain, { https: false });
@@ -52,7 +52,7 @@ describe('c-sess-1 cookie and session-id discipline', () => {
     expect(cookieLines(secure).join()).toContain('Secure');
   });
 
-  it('c-sess-1 ids are 128 bits of entropy and never repeat', async () => {
+  it('ids are 128 bits of entropy and never repeat', async () => {
     const ids = new Set();
     for (let i = 0; i < 10; i += 1) {
       const res = fakeRes();
@@ -86,7 +86,7 @@ describe('c-sess-1 cookie and session-id discipline', () => {
   });
 });
 
-describe('c-sess-2 regeneration and store hygiene', () => {
+describe('session regeneration and store hygiene', () => {
   it('c-sess-2 regenerate issues a new id and deletes the old row', async () => {
     const res = fakeRes();
     const session = await store.start(fakeReq({ cookies: {} }), res);
@@ -132,7 +132,7 @@ describe('c-sess-2 regeneration and store hygiene', () => {
     expect((await http.get('/profile')).status).toBe(303);
   });
 
-  it('c-sess-2 expired rows are swept by ordinary traffic', async () => {
+  it('expired rows are swept by ordinary traffic', async () => {
     await row('SELECT 1');
     await truncateAll();
     // An expired session row, written the way the store writes them.
@@ -145,7 +145,7 @@ describe('c-sess-2 regeneration and store hygiene', () => {
     expect(await count('SELECT COUNT(*) FROM sessions WHERE id = ?', ['ffffffffffffffffffffffffffffffff'])).toBe(0);
   });
 
-  it('c-sess-2 the session payload stays server-side; the cookie holds only the id', async () => {
+  it('the session payload stays server-side; the cookie holds only the id', async () => {
     await makeUser('sess-body', 'sess-body@test.example', 'Passw0rdLong1');
     const http = await agent();
     const login = await loginAs(http, 'sess-body@test.example', 'Passw0rdLong1');
