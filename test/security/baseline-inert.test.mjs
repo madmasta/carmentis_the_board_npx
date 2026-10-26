@@ -54,10 +54,9 @@ describe('the seeded probe stays inert', () => {
     probeThreadId = Number(probe.id);
   });
 
-  // Slugged with the control it proves: `vuln/xss_stored` inverts the escape-first
-  // boundary (C-XSS-1), which is exactly what makes the stored probe live there, so the
-  // branch run skips this case by declaration rather than pretending it holds.
-  it('c-xss-1 the stored probe renders as escaped text, never as markup', async () => {
+  // No control slug here on purpose: docs/04 §8 makes this file a secondary
+  // differential that no branch may skip by declaring a control away.
+  it('the stored probe renders as escaped text, never as markup', async () => {
     const http = await agent();
     await loginAs(http, 'regular@test.theboard.local', 'TestPass123');
 
