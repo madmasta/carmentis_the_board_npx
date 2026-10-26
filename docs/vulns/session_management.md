@@ -29,26 +29,40 @@ the victim's authenticated session.
 
 ## Sink
 
-`src/session/store.js` — `regenerate(session, res)`, called from
-`src/auth/login.js#completeLogin`. On `main` `regenerate` deletes the old row,
-creates a new row with a fresh `crypto.randomBytes(16)` id and writes a new
-cookie. The branch turns it into a no-op that keeps the current id and merely
-extends `expires_at` to 30 days, and it accepts the id from a `sid` query
-parameter when no cookie is present (the shared-link convenience path).
+`src/session/store.js` — `regenerate(session, res)` (reached from
+`establish()`, which `src/auth/login.js#completeLogin` calls). On `main` `regenerate`
+deletes the old row, takes a fresh `crypto.randomBytes(16)` id, clears the CSRF token
+and writes a new cookie. The branch keeps the id: it writes the same row again and lets
+the ordinary sliding TTL refresh `expires_at`. And `start()` reads the id from a `sid`
+query parameter when no cookie is present (the shared-link convenience path):
+
+```js
+const presented = req.cookies?.[cookieName()] ??
+  (typeof req.query?.sid === 'string' ? req.query.sid : null);
+```
+
+Because `insertRow()` always rewrites `expires_at` from `SESSION_TTL_MINUTES`, the branch
+does not — and cannot — "extend to 30 days" without touching that helper; the observable
+change is that the id survives.
 
 ## Baseline control removed
 
 | Control | Control text (summary) | How the diff removes it |
 |---|---|---|
 | `C-SESS-2` | Id regenerated on login and privilege change; old row deleted | `regenerate` keeps the id and only touches the expiry |
-| `C-SESS-1` (never-adopted clause) | Ids from a CSPRNG, never adopted from an untrusted source | `sid` from the query string is adopted as the session id; the id-generation clause stays intact |
+| `C-SESS-1` (never-adopted clause only) | Ids from a CSPRNG, never adopted from an untrusted source | `sid` from the query string is adopted as the session id; the cookie-attribute and id-entropy clauses stay intact |
+
+The clause split is visible in the suite: only `an unknown presented id is never
+adopted` and `a malformed presented id is ignored, not looked up` carry the
+`c-sess-1` slug, so declaring this control away skips the adoption behaviour and
+still runs the cookie-attribute and entropy cases (the exploit test re-proves those
+from the other side).
 
 ## Minimal diff
 
 Files touched:
 
-- `src/session/store.js` — `regenerate` becomes an expiry update; `start()` accepts
-  `?sid=` when the cookie is absent.
+- `src/session/store.js` — `regenerate` writes the current row instead of replacing the id; `start()` accepts `?sid=` when the cookie is absent.
 - `src/auth/login.js` — no change (the call site stays, which is what makes the
   downgrade invisible to a call-site audit).
 - `test/vulns/session_management.test.mjs` — new file.
