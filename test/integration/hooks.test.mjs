@@ -464,7 +464,7 @@ describe('password reset and remember-me', () => {
     expect((await after.get('/profile')).status).toBe(200);
   });
 
-  it('a short password on the reset form is rejected by the same validator', async () => {
+  it('c-auth-2 a short password on the reset form is rejected by the same validator', async () => {
     const http = await agent();
     await postForm(http, '/forgot-password', { email: 'hook-pleb@test.example' }, '/forgot-password');
     const token = /\/reset-password\?token=([A-Za-z0-9._-]+)/.exec(mailTo('hook-pleb@test.example'))[1];
