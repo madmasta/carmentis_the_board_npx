@@ -70,7 +70,7 @@ untouched.
 ## Payload sketch
 
 The envelope must be the one this app exports (`GET /board/:id/export.xml` is the shape):
-root `<board-export>` with `schema="theboard-xml/1"` and a matching `board_id`, threads as
+root `<board-export>` with `schema="theboard-board-export/1"` and a matching `board_id`, threads as
 `<thread title="…"><post>…</post><reply>…</reply></thread>`. Anything else is rejected as
 "not the app envelope".
 
@@ -78,7 +78,7 @@ root `<board-export>` with `schema="theboard-xml/1"` and a matching `board_id`, 
 POST /board/3/import            (form field: xml=<envelope>, csrf_token=…)
 
 <?xml version="1.0"?>
-<board-export schema="theboard-xml/1" board_id="3">
+<board-export schema="theboard-board-export/1" board_id="3">
   <thread title="ssti"><post>{{ 7*7 }} {{ ''['constructor']['constructor']('return 1+1')() }}</post></thread>
 </board-export>
 ```
