@@ -66,9 +66,16 @@ proofs in `test/security/controls.test.mjs` **and** the `C-INFO-2` proof in
 
 Files touched:
 
-- `src/hooks/upload.js` — the client-trusting `store()` above.
-- `src/http/server.js` — add `/uploads/*` to the static allowlist with
-  extension-derived content types.
+- `src/hooks/upload.js` — `publicUploadsDir()` and `storeAsSubmitted(file)`, which write
+  the submitted filename under `public/uploads/`. `store()`/`inspect()` stay in the
+  file, uncalled by the avatar path — that is why the `c-upload-1` cases in
+  `test/integration/hooks.test.mjs` are declared away rather than left to pass.
+- `src/http/hooks.controller.js` — `avatarUpload` drops the `inspect()` gate and the
+  generated-name store, and writes through `storeAsSubmitted`.
+- `src/http/server.js` — `serveStatic` gains a `/uploads/` prefix branch: containment
+  is checked against the uploads directory (so this branch is not also a traversal),
+  and the Content-Type comes from the file's extension — which is how an uploaded
+  `.html` comes back as `text/html`.
 - `test/vulns/file_upload.test.mjs` — new file.
 
 ## Payload sketch
