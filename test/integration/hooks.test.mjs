@@ -135,6 +135,25 @@ describe('link preview (POST /preview)', () => {
   });
 });
 
+  // C-XSS-2 over HTTP: the preview screen echoes what the caller posted, and the echo
+  // is escaped. `vuln/xss_reflected` renders that same echo through `|safe`, which is
+  // why this case carries the slug (docs/04 §6).
+  it('c-xss-2 the preview form echoes the submitted url as text', async () => {
+    const http = await signIn();
+    // A parseable address that does not resolve: the preview screen re-renders with the
+    // submitted value echoed back. The BLOCKED path answers a plain error page, which
+    // echoes nothing, so the payload has to be shaped like an ordinary dead link.
+    // No spaces: parseTarget refuses any whitespace in the value, and HTML accepts `/`
+    // where an attribute separator is wanted — which is what keeps the payload a URL.
+    const probe = 'http://preview.invalid/"><img/src=x/onerror=preview-probe><input/value=';
+
+    const res = await postForm(http, '/preview', { url: probe }, '/profile');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('&quot;&gt;&lt;img');
+    expect(res.text).not.toContain('<img/src=x');
+    expect(res.text).not.toContain('<input/value=');
+  });
+
 describe('xml export and import', () => {
   it('exports the app envelope for a board', async () => {
     const http = await signIn();

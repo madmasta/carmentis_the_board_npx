@@ -116,6 +116,7 @@ attempt index; assert that at least one attempt in the window is throttled. Step
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - The kill switch's four guards must all still fire (step 4 asserts the banner and
   the log line), so the branch is a configuration change, not a removal of the
   guard logic.

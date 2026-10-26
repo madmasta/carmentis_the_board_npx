@@ -118,6 +118,7 @@ everybody on the branch — not the status code.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - `test/unit/hook-directory.test.mjs`: tokenized searches still return the same rows for
   plain values, and the criteria-document unit cases keep refusing operator leaves **when
   they arrive through `parseCriteria`** — those cases carry the `c-dir-2` slug and are the

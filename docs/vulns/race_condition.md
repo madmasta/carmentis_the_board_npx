@@ -88,6 +88,7 @@ row gains a `user_id`.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - All ten MFA lifecycle cases in `test/integration/mfa.test.mjs` stay green —
   expiry, attempt cap, resend throttle and hashing are untouched.
 - The attempt counter is still incremented (asserted by this test reading

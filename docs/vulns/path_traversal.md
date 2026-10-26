@@ -87,6 +87,7 @@ contract, not a new `400` string — and no repository file is ever served.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - Step 5 above is the invariant: `GET /avatar/:id` keeps its ownership rule
   (`C-ACL-3` is not part of this branch), and `C-UPLOAD-1`'s write-side clauses
   (magic bytes, size cap, random name) remain enforced and asserted by

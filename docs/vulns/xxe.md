@@ -80,6 +80,7 @@ external entity` and no thread is created.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - A plain, entity-free import still creates the same threads and replies
   (`test/integration/hooks.test.mjs` import assertions).
 - The 64 KiB size cap, depth cap and expansion cap stay enforced (step 4).

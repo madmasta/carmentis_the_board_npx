@@ -44,16 +44,20 @@ if (!existsSync(exploit)) {
 }
 
 /**
- * The branches docs/04 §8 says must break the inert probe. Read from the spec section
- * rather than copied, and intersected with the catalog's slugs so a stray backticked
- * word in that section cannot become a branch.
+ * What this branch's sheet says about the inert probe gate (docs/04 §8). The sheet is
+ * the authority — a branch that renders stored markup live breaks the gate, one that
+ * cannot reach it must not — and a sheet with no expectation is a spec gap, not
+ * something to guess at.
  */
-function inertBranches() {
-  const spec = readFileSync(join(root, 'docs', '04-testing-and-verification.md'), 'utf8');
-  const section = /^## 8\. The inert probe fixture\n([\s\S]*?)\n## /m.exec(spec)?.[1] ?? '';
-  const catalog = readFileSync(join(root, 'docs', '05-vuln-catalog.md'), 'utf8');
-  const known = new Set([...catalog.matchAll(/`vuln\/([a-z0-9_]+)`/g)].map((m) => m[1]));
-  return [...section.matchAll(/`([a-z0-9_]+)`/g)].map((m) => m[1]).filter((name) => known.has(name));
+function inertGateExpectation() {
+  const text = readFileSync(sheet, 'utf8');
+  const line = /Inert probe gate \(docs\/04 §8\): (broken|stays green) on this branch\./.exec(text);
+  if (line === null) {
+    console.error(`${sheet} names no inert-gate expectation (docs/04 §8).`);
+    console.error('Add one line to Must-not-break invariants: "broken on this branch" or "stays green on this branch".');
+    process.exit(2);
+  }
+  return line[1] === 'broken';
 }
 
 const declared = declaredControls(slug);
@@ -108,7 +112,7 @@ failures += run(`baseline suite (${declared.length} declared control(s) excluded
 // control, so no branch may skip it by declaring one: it runs here, and the spec names
 // the branches that must break it. Which ones is read from the spec, not hardcoded, so
 // the list cannot drift out of date without a spec edit.
-const inertMustFail = inertBranches().includes(slug);
+const inertMustFail = inertGateExpectation();
 failures += run(
   `inert probe gate (${inertMustFail ? 'this branch must break it' : 'must stay green on this branch'})`,
   node,

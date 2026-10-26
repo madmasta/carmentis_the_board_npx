@@ -77,6 +77,7 @@ external values, while step 4 must still be `/board/2`.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - Step 4 above is the invariant: internal redirects keep working exactly as on
   `main`, and `test/integration/auth.test.mjs` intended-path assertions for
   internal paths stay green.

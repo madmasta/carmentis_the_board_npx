@@ -88,6 +88,7 @@ HTML sink to report.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): broken on this branch.
 - The server response for the directory page stays correctly escaped — the
   branch's own test asserts it (step 1), and `test/security/baseline-inert.test.mjs`
   must still pass on this branch.

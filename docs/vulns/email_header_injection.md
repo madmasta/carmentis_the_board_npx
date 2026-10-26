@@ -75,6 +75,7 @@ text stays glued to the `TO:` line and no independent `Bcc:` line exists.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - The reset flow still issues exactly one token and one mail record per request
   (`test/integration/hooks.test.mjs` reset-flow assertions).
 - MFA code mail still renders in the PHP record format, and the existing

@@ -112,6 +112,7 @@ the only formatter, no child process exists, and the marker file never appears. 
 scoped to the one parameter.
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - `GET /thread/:id/export?format=md` and `?format=txt` still return the same
   bytes as on `main` for the fixture thread.
 - `format` stays allowlisted — a bad `format` is still `400`; only `renderer` is

@@ -97,6 +97,7 @@ password is unchanged.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - The legitimate reset flow still works end to end: request a link, read the
   token from the mail log, reset, log in (`test/integration/hooks.test.mjs`).
 - `jti` replay protection and expiry remain enforced (step 4 above).

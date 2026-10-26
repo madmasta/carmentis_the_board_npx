@@ -81,6 +81,7 @@ show the original body and a null `edited_at`.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - The author can still edit their own post, and an admin can still edit any post
   (`test/integration/post.test.mjs#testAuthorCanEditOwnPost` and
   `#testAdminCanEditAnyPost` stay green).

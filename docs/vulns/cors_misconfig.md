@@ -87,6 +87,7 @@ any response, and `OPTIONS` is answered `404`.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - The rest of the security header set is untouched — `C-HDR-1` assertions stay
   green, including CSP and `X-Frame-Options: DENY`; this branch is CORS only, so
   clickjacking is not part of the finding.

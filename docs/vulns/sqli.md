@@ -202,6 +202,7 @@ and step 8 (the working search) behave identically on both sides by design.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - Step 8 (`q=regular` returns exactly the `regular_rita` row) still holds: the
   search box keeps filtering, it just interpolates. The one parity case allowed to
   fail is `c-sql-3`/`testAllUsersSearch`, and it is declared above.

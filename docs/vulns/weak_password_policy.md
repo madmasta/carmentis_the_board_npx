@@ -84,6 +84,7 @@ is emitted.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - Registration with a strong password still succeeds, and duplicate
   username/e-mail handling is unchanged (`test/integration/auth.test.mjs`).
 - `test/unit/validator.test.mjs` skips only the password-rule cases; username,

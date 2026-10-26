@@ -86,6 +86,7 @@ and no state change.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - Step 2 and step 3 above are themselves invariants: token-valid requests still
   work, and a tokenless request without the magic header is still rejected.
 - Token rotation on login still happens (`test/unit/csrf.test.mjs` stays green

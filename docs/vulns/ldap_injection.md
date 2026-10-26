@@ -112,6 +112,7 @@ difference, is what makes this differential.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - `test/unit/hook-directory.test.mjs` tokenizer cases (including the escaping
   table) still pass for the default `mode=list` path; the cases that prove C-DIR-1
   on the filter-render path are the ones named `c-dir-1`, and those are the ones the

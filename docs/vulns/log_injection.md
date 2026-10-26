@@ -111,6 +111,7 @@ template is), the record is sanitized, and no `ua=` field exists — so no line 
 start with the marker and the injected newline never reaches the file.
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - The request logger still emits exactly one record per request for normal
   traffic (asserted by `test/unit/logging.test.mjs` for ordinary requests, which
   must stay green).

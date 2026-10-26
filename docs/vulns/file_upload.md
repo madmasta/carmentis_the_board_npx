@@ -115,6 +115,7 @@ no file may be written under `public/`, and step 3 must be `404`.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - A genuine PNG upload still works and is served at `GET /avatar/:id` with
   `Content-Type: image/png` and `X-Content-Type-Options: nosniff`
   (`test/unit/hook-upload.test.mjs` happy path stays green).

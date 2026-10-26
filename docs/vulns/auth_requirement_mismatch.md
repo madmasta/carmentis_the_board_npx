@@ -86,6 +86,7 @@ to that capability requires a session.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - Step 2 above is itself the invariant: the advertised route keeps its guard.
 - The rest of the router guard table is unchanged; `test/unit/router.test.mjs`
   stays green, including the guard-required check (step 5).

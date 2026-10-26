@@ -83,6 +83,7 @@ receives a request.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - Previewing a normal absolute URL still returns a title/description card built
   from escaped text — the XSS-safe extraction path is unchanged, and the existing
   `test/unit/hook-preview.test.mjs` scheme-allowlist cases stay green.

@@ -84,6 +84,7 @@ ban reason is absent from the users page, and no `sid=` appears in the log.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - The users table still lists usernames, e-mails, roles and post counts, and the
   search still works (`test/integration/user-repository.test.mjs#testAllUsersSearch`).
 - Password **authentication** is unaffected: hashes are still verified normally

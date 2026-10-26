@@ -97,6 +97,7 @@ step 4 must be `403`.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - The MFA toggle still requires the current password and still refuses the change
   when it is wrong (`test/integration/admin-flow.test.mjs#testMfaTogglePersists`).
 - E-mail and password change routes keep their allowlisted input readers — this

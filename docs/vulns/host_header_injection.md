@@ -84,6 +84,7 @@ allowlist-violating `Host` is answered `400 Unknown host`.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - Step 5 above is the invariant: the legitimate reset flow is unchanged.
 - Session cookie naming and flags are untouched — the finding is link poisoning,
   not cookie scope; `test/integration/session.test.mjs` stays green.

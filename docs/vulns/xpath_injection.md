@@ -112,6 +112,7 @@ $v0)`, and step 5 is an ordinary empty result rather than a parse error. Steps 2
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - `test/unit/hook-xpath.test.mjs` normal searches keep their exact results.
 - The directory listing route still rejects operator objects: `C-DIR-2` is declared
   away only for the XPath search path, so the `c-dir-2` cases in

@@ -92,6 +92,7 @@ full policy including `script-src 'self'` and `frame-ancestors 'none'`.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - The other 16 templates keep working and their suites stay green, because each
   has an explicit escape at the reflection points the tests cover — the branch is
   only acceptable if the rest of the suite passes, which is enforced by

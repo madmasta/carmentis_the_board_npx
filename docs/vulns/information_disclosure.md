@@ -95,6 +95,7 @@ with no `at ` frames.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - `/health` still answers `200` with a body that parses as JSON and contains
   `"ok":true` (the smoke test in `test/integration/static.test.mjs` stays green).
 - Error status codes are unchanged: a throwing route is still `500`, a missing

@@ -91,6 +91,7 @@ generic invalid-link message, because the current library honours the pinned
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - Every existing suite stays green with the older packages installed: the reset,
   remember-me, XPath and XML import tests all pass, which proves the downgrade is
   a realistic "it still works, nobody noticed" state rather than a broken build.

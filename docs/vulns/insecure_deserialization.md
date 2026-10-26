@@ -85,6 +85,7 @@ the summary never contains the marker and the environment is unchanged.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - A genuine snapshot exported from `/admin/boards/:id/snapshot.json` and posted
   back still restores the same counts (`test/integration/hooks.test.mjs`).
 - The restore still runs inside one transaction (rollback assertion in

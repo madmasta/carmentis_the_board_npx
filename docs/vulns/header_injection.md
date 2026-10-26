@@ -87,6 +87,7 @@ term is not echoed in a header at all.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - The directory page still works and its search chip still shows the term for
   ordinary values.
 - The CSP and baseline header set are still present on this response — the branch

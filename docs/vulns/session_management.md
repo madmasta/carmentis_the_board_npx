@@ -86,6 +86,7 @@ On `main` step 3 must fail: `regenerate` issues a different id, the `id0` row ke
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - Login, logout and MFA still function; the flash messages and the intended-path
   behaviour are unchanged (`test/integration/auth.test.mjs` green).
 - Session expiry sweep still runs and removes rows (asserted inside this test with

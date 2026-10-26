@@ -78,6 +78,7 @@ must be unchanged.
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - Step 5 above is an invariant, and so is the board-access rule: `outsider_olly`
   posting to a restricted board is still `404` (the branch keeps `userCanAccess`).
 - The import validation (XML well-formedness, size and depth caps) stays

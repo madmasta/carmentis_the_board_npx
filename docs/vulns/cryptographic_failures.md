@@ -90,6 +90,7 @@ the test cannot know).
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): stays green on this branch.
 - The reset flow still works normally end to end (`test/integration/hooks.test.mjs`).
 - MFA code generation, CSRF tokens, session ids and upload names still pass their
   own tests — only the reset/remember token purpose is weak, and the upload-name

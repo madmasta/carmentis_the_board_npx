@@ -84,6 +84,7 @@ rendered as escaped text: the response contains the literal `{{ 7*7 }}` and no
 
 ## Must-not-break invariants
 
+- Inert probe gate (docs/04 §8): broken on this branch.
 - Ordinary imported text (no template syntax) renders identically to `main`.
 - Existing posts and the sanitizer probe post are unaffected —
   `test/security/baseline-inert.test.mjs` must still pass, because this branch
