@@ -149,7 +149,8 @@ dummy hash so latency does not reveal existence.
 Minimum length from `PASSWORD_MIN_LENGTH`, ≤ 200, letter + digit when min ≥ 8,
 must not equal the username or email.
 *Location:* `src/security/validator.js#password`.
-*Proof:* `test/unit/validator.test.mjs` password cases.
+*Proof:* `test/unit/validator.test.mjs#c-auth-2` — `testPasswordLength`,
+`testPasswordRequiresLetterAndDigit` and `testPasswordMustNotMatchUsernameOrEmail`.
 
 **C-AUTH-3 — Login throttling with a guarded kill switch.**
 Per email **and** per IP, `LOGIN_MAX_ATTEMPTS` inside `LOGIN_WINDOW_MINUTES`,

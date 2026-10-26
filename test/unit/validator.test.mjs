@@ -38,17 +38,17 @@ describe('validator', () => {
     expect(email('@example.com')).not.toEqual([]);
   });
 
-  it('testPasswordLength', () => {
+  it('testPasswordLength — c-auth-2 the length floor is the policy minimum', () => {
     expect(password('LongEnough1')).toEqual([]);
     expect(password('short1a')).not.toEqual([]);
   });
 
-  it('testPasswordRequiresLetterAndDigit', () => {
+  it('testPasswordRequiresLetterAndDigit — c-auth-2 letter and digit are required', () => {
     expect(password('nodigitshere')).not.toEqual([]);
     expect(password('1234567890')).not.toEqual([]);
   });
 
-  it('testPasswordMustNotMatchUsernameOrEmail', () => {
+  it('testPasswordMustNotMatchUsernameOrEmail — c-auth-2 the password may not equal the username or email', () => {
     // 'alice12345' passes length/character rules but equals the username
     expect(password('alice12345', 'alice12345')).not.toEqual([]);
     expect(password('user@example.com', null, 'user@example.com')).not.toEqual([]);
