@@ -127,7 +127,15 @@ for (const section of sections) {
   if (SKIP_RE.test(source)) problems.push(`${section.nodeFile}: contains a skipped or only-marked case`);
 
   const names = caseNames(source);
+  // A case may carry a control slug after an em dash — `testRawHtmlIsEscaped —
+  // c-xss-1 escape the whole input first` — which is how a PHP-mirrored case gets the
+  // slug that `verify:branch` uses to exclude it on a branch. The ported name stays the
+  // prefix, so the 1:1 diff is still readable.
   const seen = new Set(names);
+  for (const name of names) {
+    const base = name.split(' — ')[0].trim();
+    if (base !== '') seen.add(base);
+  }
   for (const testCase of section.cases) {
     if (seen.has(testCase.node)) {
       found += 1;
