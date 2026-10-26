@@ -73,13 +73,20 @@ authenticated sessions exist from one code.
 1. Log in as `mfa_mia`, read the OTP from the run's mail log.
 2. Build 12 HTTP agents that share the mid-login session cookie and the CSRF
    token, and fire the 12 `POST /mfa` requests with `Promise.all`.
-3. Count the responses that are a `303` to `/` (a completed login) and count the
-   distinct session rows in `sessions` that now carry `user_id` for `mfa_mia`.
-4. Assert completions ≥ 2 and distinct authenticated sessions ≥ 2 — the code was
-   consumed more than once.
-5. Assert that a *sequential* replay of the same code still fails after the first
-   success, so the single-use rule works serially and the finding is a
-   concurrency defect.
+3. Count the responses that are a `303` to `/` (a completed login), read
+   `MAX(mfa_codes.attempts)` for that user, and collect the session ids in the
+   `Set-Cookie` headers of the completed responses.
+4. Assert completions ≥ 2, `attempts` ≥ 2 (two or more readers each reached the
+   increment, so each of them saw an unused row) and at least two distinct session
+   ids were issued — the code was consumed more than once.
+5. Assert that a *serial* replay still fails (`mfa.verify()` returns an empty list
+   the first time and a non-empty list the second, and no unused row is left), so
+   the single-use rule works one-at-a-time and the finding is a concurrency
+   defect.
+
+The user in the test is created with `makeUser('race', …)` plus
+`users.setMfaEnabled(true)` rather than the `mfa_mia` persona, because the burst
+must be the only activity in the run's mail log.
 
 On `main` this test must fail at step 4: exactly one request completes, the rest
 receive `Incorrect code. Please try again.` or
@@ -94,8 +101,11 @@ row gains a `user_id`.
 - The attempt counter is still incremented (asserted by this test reading
   `mfa_codes.attempts` afterwards), so the branch is not also removing `C-MFA-1`.
 - Login throttling unaffected; `test/security/baseline-inert.test.mjs` passes.
-- Only the `c-race-1` cases are skipped; the ten `c-mfa-1` lifecycle cases in
-  `test/integration/mfa.test.mjs` run and must stay green.
+- Only the `c-race-1` cases are skipped — and only the OTP one: the vote cases in
+  `test/integration/race-baseline.test.mjs` carry `c-race-1-vote` and the reset-token
+  case carries `c-race-1-token`, so those two invariants keep running here (this diff
+  touches neither the vote write nor the reset-token write). The ten `c-mfa-1`
+  lifecycle cases in `test/integration/mfa.test.mjs` run and must stay green.
 
 ## Fidelity to the PHP branch
 

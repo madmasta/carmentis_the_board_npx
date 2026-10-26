@@ -49,7 +49,7 @@ describe('c-race-1 single-use resources', () => {
     expect(await count('SELECT COUNT(*) FROM mfa_codes WHERE used_at IS NULL')).toBe(0);
   });
 
-  it('c-race-1 twenty parallel votes from one user leave one vote row and score 1', async () => {
+  it('c-race-1-vote twenty parallel votes from one user leave one vote row and score 1', async () => {
     const owner = await makeUser('race-owner', 'race-owner@test.example', 'RacePass1234');
     const voter = await makeUser('race-voter', 'race-voter@test.example', 'RacePass1234');
     const boardId = Number((await makeBoard('Race Board', true, Number(owner.id))).id);
@@ -68,7 +68,7 @@ describe('c-race-1 single-use resources', () => {
     expect(await votes.score(postId)).toBe(1);
   });
 
-  it('c-race-1 concurrent voters each get their own row', async () => {
+  it('c-race-1-vote concurrent voters each get their own row', async () => {
     const owner = await makeUser('race-owner2', 'race-owner2@test.example', 'RacePass1234');
     const boardId = Number((await makeBoard('Race Board 2', true, Number(owner.id))).id);
     const postId = Number(await makeThread(boardId, Number(owner.id), 'Race thread 2', 'body'));
@@ -94,7 +94,7 @@ describe('c-race-1 single-use resources', () => {
     expect(await votes.score(postId)).toBe(6);
   });
 
-  it('c-race-1 a reset token replayed in parallel changes the password once', async () => {
+  it('c-race-1-token a reset token replayed in parallel changes the password once', async () => {
     await makeUser('race-reset', 'race-reset@test.example', 'RacePass1234');
 
     const http = await agent();
