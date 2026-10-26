@@ -120,7 +120,7 @@ describe('posts', () => {
     expect(thread.edited_at).not.toBeNull();
   });
 
-  it('testNonAuthorCannotEditOthersPost', async () => {
+  it('testNonAuthorCannotEditOthersPost — c-acl-3 the object-level check is in the write predicate too', async () => {
     const author = await makeUser('author');
     const stranger = await makeUser('stranger');
     const board = await makeBoard('Edit', true);
