@@ -338,17 +338,22 @@ describe('Authorization and bodies', () => {
 
 describe('Guard consistency across routes', () => {
   controlCase('C-ACL-4', 'no route reaches a login-only capability as anon', async () => {
-    // The route table is the product's access model. A handler that enforces a
-    // session itself may still not be mounted on an anonymous route: that is the
-    // disagreement `auth_requirement_mismatch` creates, and the mismatch is the
-    // finding even before the handler's own check is looked at.
+    // The route table is the product's access model. One capability — one handler —
+    // must not answer to two different authentication requirements: that is the
+    // disagreement `auth_requirement_mismatch` creates. The check is on handler
+    // identity rather than on whether the handler happens to call `requireLogin`
+    // today, so removing that call cannot hide the mismatch.
     const entries = (await import('../../src/routes.js')).routes;
-    const mismatched = [];
-
+    const guardsByHandler = new Map();
     for (const entry of entries) {
-      const body = String(entry.handler);
-      const enforcesSession = /requireLogin\s*\(/.test(body) || /requireAdmin\s*\(/.test(body);
-      if (enforcesSession && entry.guard === 'anon') mismatched.push(`${entry.method} ${entry.path}`);
+      if (!guardsByHandler.has(entry.handler)) guardsByHandler.set(entry.handler, new Map());
+      guardsByHandler.get(entry.handler).set(`${entry.method} ${entry.path}`, entry.guard);
+    }
+
+    const mismatched = [];
+    for (const byPath of guardsByHandler.values()) {
+      const guards = new Set(byPath.values());
+      if (guards.size > 1) mismatched.push([...byPath.entries()].map(([path, guard]) => `${path}=${guard}`).join(' vs '));
     }
     expect(mismatched, mismatched.join(', ')).toEqual([]);
   });

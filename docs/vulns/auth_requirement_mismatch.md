@@ -98,9 +98,10 @@ to that capability requires a session.
 
 The removal is detected on `main` by
 `controls.test.mjs#c-acl-4 no route reaches a login-only capability as anon`, a
-route-table scan that reads each handler's own source: an entry whose handler calls
-`requireLogin`/`requireAdmin` may not be mounted `anon`. That case is what this
-declaration skips, and it is the case the branch contract audit expects to go red.
+route-table scan that groups entries by handler identity: one handler mounted under
+two different guard classes is a capability with two answers to "who may use this".
+The scan deliberately does not look at whether the handler calls `requireLogin` — if
+it did, removing that call (half of this diff) would hide the mismatch.
 `C-ACL-2` is **not** declared: the handler-level check this diff removes is the second
 belt on a route the guard already covers, and the capability probe that registers
 `C-ACL-2` (the board-import admin check) stays green here, so declaring it would be a
