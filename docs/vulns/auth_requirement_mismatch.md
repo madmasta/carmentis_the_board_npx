@@ -28,27 +28,39 @@ route table and the product's own access model disagree.
 
 ## Sink
 
-`src/routes.js`. The branch registers the alias entry
-`{ method: 'POST', path: '/directory/query', guard: 'anon', handler: directory.search }`.
-The handler itself never calls `requireLogin()` — on `main` that is acceptable
-because the route guard is the only entry to that capability, and the capability
-has no object-level rule. With the alias present, the capability's requirement is
-now inconsistent: login through one path, anonymous through the other.
+Two edits, one entry point each.
+
+`src/routes.js` registers the alias
+`{ method: 'POST', path: '/directory/query', guard: 'anon', handler: hooks.directorySearch }`,
+and `src/http/hooks.controller.js` drops the `requireLogin(ctx)` call at the top of
+`directorySearch` — on `main` that call is the second belt on a route already guarded
+with `guard: 'login'`, so removing it is invisible on the advertised path and decisive
+on the alias. The result is the inconsistency the class is about: the route table says
+anonymous, the product says login-only, and the handler no longer disagrees with the
+route table.
+
+```js
+// routes.js, immediately after the /directory/search entry
+{ method: 'POST', path: '/directory/query', guard: 'anon', handler: hooks.directorySearch },
+
+// hooks.controller.js — directorySearch(ctx) now begins with the `q` read
+```
 
 ## Baseline control removed
 
 | Control | Control text (summary) | How the diff removes it |
 |---|---|---|
-| `C-ACL-4` | Every route declares a guard, and the guard matches the capability's requirement | the alias declares `anon` for a login-only capability |
-| `C-ACL-2` | Capability enforced per request rather than inherited from one entry point | no handler-level check exists to catch the alias |
+| `C-ACL-4` | Every route declares a guard, and the guard matches the capability's requirement | the alias mounts a login-only capability on `guard: 'anon'`, and the handler-level session check that used to contradict the route table is removed |
 
 ## Minimal diff
 
 Files touched:
 
 - `src/routes.js` — add the alias entry `{ method: 'POST', path: '/directory/query',
-  guard: 'anon', handler: directory.search }` immediately after the
+  guard: 'anon', handler: hooks.directorySearch }` immediately after the
   `/directory/search` entry.
+- `src/http/hooks.controller.js` — the `requireLogin(ctx)` call at the top of
+  `directorySearch`.
 - `test/vulns/auth_requirement_mismatch.test.mjs` — new file.
 
 ## Payload sketch
@@ -83,6 +95,16 @@ same payload to `/directory/search` without a session returns a login redirect.
 
 On `main` step 3 must be a `404`: the alias route does not exist, and every entry
 to that capability requires a session.
+
+The removal is detected on `main` by
+`controls.test.mjs#c-acl-4 no route reaches a login-only capability as anon`, a
+route-table scan that reads each handler's own source: an entry whose handler calls
+`requireLogin`/`requireAdmin` may not be mounted `anon`. That case is what this
+declaration skips, and it is the case the branch contract audit expects to go red.
+`C-ACL-2` is **not** declared: the handler-level check this diff removes is the second
+belt on a route the guard already covers, and the capability probe that registers
+`C-ACL-2` (the board-import admin check) stays green here, so declaring it would be a
+"kept" row in disguise.
 
 ## Must-not-break invariants
 
