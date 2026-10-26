@@ -18,10 +18,12 @@ an attacker who sees one token can compute the next token for a different accoun
 
 ## Affected surface
 
-- Route: `POST /forgot-password` (issue) and `POST /reset-password` (use)
-- Parameter: `token` (form body)
-- Prerequisites: `anon` profile
-- Reachability: the forgot-password form
+- Routes: `POST /admin/users/:id/password` (the admin-issued one-time password) and
+  `POST /reset-password` (the signed token's use)
+- Parameters: the generated one-time password, and `token` (form body)
+- Prerequisites: an admin session for the one-time-password path (`owner_olivia`); anonymous for the
+  reset-token path
+- Reachability: the admin user row's password action, and the forgot-password form
 
 ## Sink
 
