@@ -218,10 +218,16 @@ renames so the cases that prove `C-XPATH-1`/`C-DIR-1` carry those slugs; and the
 to `controls.test.mjs#sourceFiles`, whose broken recursion had been silently skipping
 every subdirectory of `src`. Four sheets were corrected to name the code that actually
 exists (`sqli`, `xpath_injection`, `ldap_injection`, `command_injection`,
-`log_injection`). `nosql_injection` is open: its sheet assumes object-valued request
-parameters (`?q[$ne]=x`) and a directory document-matching layer, and this port has
-neither — its query parser is flat, so the branch as written cannot be reached. That
-is a spec gap to settle on `main` before the branch is built.
+`log_injection`, `nosql_injection`).
+
+`nosql_injection` needed substrate first: `main` gained `POST /directory/match`, a
+criteria-document endpoint (`{"field": value}` JSON evaluated by `matchDirectory`), whose
+`parseCriteria` is the trust boundary — a request document must carry scalar leaves, so
+the operator grammar in `matchEntry` is reachable only for documents from storage. The
+branch deletes that rule. Batch A is therefore 6/6, and the rule it taught is recorded in
+each sheet: only a genuinely removed control may appear in the sheet's "Baseline control
+removed" table, because `verify:branch` skips every case named by a declared control and
+a "kept" row there quietly weakens the baseline claim.
 
 **Exit gate:** `node tools/verify-all-branches.mjs` prints a 35-row matrix, all
 rows `PASS`, and `git branch --list 'vuln/*' | wc -l` is 35 with each branch
