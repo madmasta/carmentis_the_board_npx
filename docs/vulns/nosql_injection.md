@@ -44,10 +44,12 @@ out of storage. No directory server and no document database is involved (`docs/
 | Control | Control text (summary) | How the diff removes it |
 |---|---|---|
 | `C-DIR-2` | Directory filter and criteria values are primitives; operator objects are rejected before they reach a matcher | `parseCriteria` drops the scalar-leaf rule and stops stringifying leaves, so a request document hands `matchEntry` an operator object |
-| `C-DIR-2` | `MATCH_FIELDS` allowlist for criteria documents | **kept** — the injected predicate can still only name a projected column |
-| `C-DIR-1` | tokenizer, field allowlist and escaping on the listing and filter paths | **kept** — that path is text-shaped and untouched; its network cases stay green |
-| `C-SQL-1` | bound parameters on every SQL path | **kept** — this injection never reaches SQL, so the SQL cases stay green |
-| `C-AUTH-1`, `C-CSRF-1` | login guard and CSRF token on `POST /directory/match` | **kept** — the document arrives through the ordinary authenticated, token-bearing path |
+
+**Declared for the run: `C-DIR-2` and nothing else.** The `MATCH_FIELDS` allowlist, the
+listing/filter tokenizer, SQL binding, the login guard and the CSRF check all stay in
+force on this branch, so their cases must keep passing there — naming any of them in this
+table would tell `verify:branch` to skip them and hide the downgrade (the branch-contract
+case fails a sheet that declares a control whose probe still passes).
 
 ## Minimal diff
 
@@ -125,7 +127,7 @@ everybody on the branch — not the status code.
 - The projection stays five columns: the widened table never carries `password_hash`,
   `ban_reason` or `mfa_enabled`.
 - `test/security/baseline-inert.test.mjs` passes.
-- Declared controls for the run: `C-DIR-2` only.
+- Declared controls for the run: `C-DIR-2` only — everything named above stays green on the branch, and `test/security/controls.test.mjs > a control the sheet declares removed is really removed` proves the declaration is not overstated.
 
 ## Fidelity to the PHP branch
 
