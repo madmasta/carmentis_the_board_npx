@@ -25,22 +25,26 @@ set columns the form never exposes — including the role column.
 
 ## Sink
 
-`src/http/profile.controller.js` — `update(req)`. On `main` the handler reads its
-input through `readInput(req, ['current_password', 'mfa_enabled'])`, an allowlist
-with explicit casts, and the `UPDATE` names two columns. The branch builds the
-patch generically:
+`src/http/profile.controller.js` — `update(ctx)`. On `main` the handler reads one
+field by name (`posts(ctx, ['current_password'])`), computes the toggle from
+`ctx.req.fields.mfa_enabled`, and writes a single column through
+`users.setMfaEnabled()` in the repository. The branch spreads the whole submitted
+field map into a `SET` clause built from a fixed column map:
 
 ```js
 const COLUMN = { role: 'role', is_banned: 'is_banned', mfa_enabled: 'mfa_enabled',
                  email: 'email', username: 'username', ban_reason: 'ban_reason' };
-const patch = { ...req.body };
+const patch = { ...ctx.req.fields };
 delete patch.csrf_token;
-const sets = Object.keys(patch).filter(k => COLUMN[k]);
+const sets = Object.keys(patch).filter((key) => COLUMN[key] !== undefined);
 await execute(
-  `UPDATE users SET ${sets.map(k => `${COLUMN[k]} = ?`).join(', ')} WHERE id = ?`,
-  [...sets.map(k => patch[k]), req.user.id],
+  `UPDATE users SET ${sets.map((key) => `${COLUMN[key]} = ?`).join(', ')} WHERE id = ?`,
+  [...sets.map((key) => patch[key]), Number(user.id)],
 );
 ```
+
+The current-password check stays ahead of it, so the path stays as reachable as it
+was.
 
 Column names come from a fixed map, and the code stays in
 `src/http/profile.controller.js`, which is outside the three places `C-SQL-1`'s
@@ -62,8 +66,8 @@ dropped, which is also why the finding needs a mapped column such as `role`.
 Files touched:
 
 - `src/http/profile.controller.js` — the generic patch construction above in
-  `update()`, keeping the password confirmation check first so the path stays
-  reachable.
+  `update()` (plus the `execute` import it needs), keeping the password confirmation
+  check first so the path stays reachable.
 - `test/vulns/mass_assignment.test.mjs` — new file.
 
 ## Payload sketch
@@ -95,6 +99,13 @@ Expected effect: `regular_rita` now has `role = 'admin'` and can open
 On `main` step 3 must show `role === 'user'` — unknown fields are dropped — and
 step 4 must be `403`.
 
+The field-allowlist proof lives on `main` as
+`controls.test.mjs#c-assign-1 the profile update binds only the fields its form
+exposes`; that is the case this declaration skips and the audit expects to go red.
+The prototype-key proofs in `test/unit/request.test.mjs` carry the sub-slug
+`c-assign-1-keys`, which the skip pattern in `test/helpers/declared.mjs` does not
+match, so they keep running here.
+
 ## Must-not-break invariants
 
 - Inert probe gate (docs/04 §8): stays green on this branch.
@@ -106,8 +117,9 @@ step 4 must be `403`.
 - Prototype-key rejection remains (step 5), so the router and body parser stay
   healthy for every other route. That is why only the field-allowlist cases of
   `C-ASSIGN-1` are skipped: the `__proto__`/`constructor` cases in
-  `test/unit/request.test.mjs` and `controls.test.mjs#c-assign-1` keep running and
-  must stay green.
+  `test/unit/request.test.mjs` carry `c-assign-1-keys` and keep running, and the
+  `Object.assign` source scan in `controls.test.mjs` stays green because this diff
+  uses a spread rather than `Object.assign`.
 - `test/security/baseline-inert.test.mjs` passes; no other control is touched.
 
 ## Fidelity to the PHP branch
