@@ -239,6 +239,18 @@ where it over-claimed: the live exit is the `markup` filter in `templates/partia
 only; the `plain` teaser on `GET /board/:id` and `GET /admin/posts` stays inert on the
 branch, and the sheet says so.
 
+`nosql_injection` and `xss_reflected` are also built and `PASS`, so 8 of 35 branches
+exist. Two more sheets were re-grounded because they described substrate this port does
+not have: `nosql_injection` (operator objects cannot arrive through this app's flat query
+parser, so `main` gained `POST /directory/match` and the sheet now points at
+`parseCriteria`), and `xss_reflected` (the hostname echo it named is unreachable —
+`new URL()` throws on a markup authority — so the sink is the preview form's own echo, and
+the payload must be a whitespace-free URL that fails to resolve, because
+`parseTarget` answers anything else with a plain error page that echoes nothing). The
+inert probe gate's expectation is now stated per sheet (`docs/04` §8) and read by
+`verify:branch`, which replaces the hardcoded five-branch list that wrongly told
+`xss_reflected` it must break the stored probe.
+
 **Exit gate:** `node tools/verify-all-branches.mjs` prints a 35-row matrix, all
 rows `PASS`, and `git branch --list 'vuln/*' | wc -l` is 35 with each branch
 exactly one commit off `main`.
