@@ -291,8 +291,11 @@ describe('Authorization and bodies', () => {
       const http = await agent();
       await http.get(`/login?next=${encodeURIComponent(target)}`);
       const res = await postForm(http, '/login', { email: 'redir-probe@test.example', password: 'Passw0rdLong1' }, '/login');
-      if (res.status === 303 && res.headers.location !== '/' && !String(res.headers.location).startsWith('/')) {
-        leaked.push(`${target} -> ${res.headers.location}`);
+      const location = String(res.headers.location ?? '');
+      // Anything but an internal path — and a scheme-relative target is exactly the
+      // hop that looks internal in a naive check.
+      if (res.status === 303 && location !== '/' && !/^\/(?!\/)/.test(location)) {
+        leaked.push(`${target} -> ${location}`);
       }
     }
     expect(leaked, leaked.join(String.fromCharCode(10))).toEqual([]);

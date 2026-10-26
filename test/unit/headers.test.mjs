@@ -71,7 +71,7 @@ describe('redirect targets', () => {
     expect(safeRedirectLocation('/thread/7?page=2')).toBe('/thread/7?page=2');
   });
 
-  it('rejects protocol-relative, absolute and CRLF targets', () => {
+  it('c-hdr-2 rejects protocol-relative, absolute and CRLF targets', () => {
     expect(() => safeRedirectLocation('//evil.example')).toThrow(UnsafeHeaderValue);
     expect(() => safeRedirectLocation('http://evil.example')).toThrow(UnsafeHeaderValue);
     expect(() => safeRedirectLocation('/a\r\nLocation: /b')).toThrow(UnsafeHeaderValue);
