@@ -51,7 +51,9 @@ if (!existsSync(exploit)) {
  */
 function inertGateExpectation() {
   const text = readFileSync(sheet, 'utf8');
-  const line = /Inert probe gate \(docs\/04 §8\): (broken|stays green) on this branch\./.exec(text);
+  // The canonical line ends with a period, but a sheet may add nuance after it, so the
+  // match stops at "on this branch" rather than insisting on the full stop.
+  const line = /Inert probe gate \(docs\/04 §8\): (broken|stays green) on this branch/.exec(text);
   if (line === null) {
     console.error(`${sheet} names no inert-gate expectation (docs/04 §8).`);
     console.error('Add one line to Must-not-break invariants: "broken on this branch" or "stays green on this branch".');
