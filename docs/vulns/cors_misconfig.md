@@ -18,7 +18,8 @@ so any site the user visits can read their session-bound data.
 
 ## Affected surface
 
-- Route: `GET /admin/users`, `GET /profile`, `GET /avatar/:id`
+- Route: `GET /board/:id`, `GET /admin/users`, `GET /profile`, `GET /avatar/:id` — and the
+  `OPTIONS` preflight for any of them (the responder answers before routing)
 - Parameter: `Origin` request header; `OPTIONS` preflight handling
 - Prerequisites: `regular` or `admin` profile for the interesting data
 - Reachability: every GET route

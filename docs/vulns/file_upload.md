@@ -18,7 +18,9 @@ attacker-authored content.
 
 ## Affected surface
 
-- Route: `POST /profile/avatar` (multipart field `avatar`)
+- Route: `POST /upload` (multipart field `name`; the avatar form posts the same hook to
+  `POST /profile/avatar` with field `avatar`). The stored object then comes back through the
+  static handler, which on this branch answers from the uploads directory.
 - Parameter: the uploaded file part: filename, content type, content
 - Prerequisites: `regular` profile
 - Reachability: the avatar form on the profile page

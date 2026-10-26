@@ -23,11 +23,11 @@ new fixture/test harness.
 | 1 | `vuln/auth_requirement_mismatch` | CWE-285 | Same capability, two auth requirements | `POST /directory/search` (`q`) | `C-ACL-4`, `C-ACL-2` | `src/routes.js` alias entry | S | [sheet](vulns/auth_requirement_mismatch.md) |
 | 2 | `vuln/broken_function_level_authz` | CWE-862 | Missing function-level authorization | `POST /board/:id/import` (body) | `C-ACL-2` | `src/http/board.controller.js#importBoard` | S | [sheet](vulns/broken_function_level_authz.md) |
 | 3 | `vuln/command_injection` | CWE-78 | OS command injection | `GET /thread/:id/export?renderer=` | `C-CMD-1` | `src/hooks/export.js#renderWith` | M | [sheet](vulns/command_injection.md) |
-| 4 | `vuln/cors_misconfig` | CWE-942 | Origin trust / CORS | `GET /admin/users` (`Origin`) | `C-HDR-3` | `src/http/headers.js` | S | [sheet](vulns/cors_misconfig.md) |
+| 4 | `vuln/cors_misconfig` | CWE-942 | Origin trust / CORS | `GET /board/:id`, `GET /admin/users`, `POST /upload` (`Origin`) | `C-HDR-3` | `src/http/headers.js` | S | [sheet](vulns/cors_misconfig.md) |
 | 5 | `vuln/cryptographic_failures` | CWE-327, CWE-330 | Weak randomness and primitives | `POST /forgot-password`, upload names | `C-CRYPTO-1` | `src/security/tokens.js`, `src/hooks/upload.js` | S | [sheet](vulns/cryptographic_failures.md) |
 | 6 | `vuln/csrf` | CWE-352 | CSRF protection absent | every state-changing route | `C-CSRF-1` | `src/http/controller.js#csrf` | S | [sheet](vulns/csrf.md) |
 | 7 | `vuln/email_header_injection` | CWE-93 | SMTP header injection | `POST /forgot-password` (`email`) | `C-MAIL-1` | `src/mail/mailer.js#headersFor` | S | [sheet](vulns/email_header_injection.md) |
-| 8 | `vuln/file_upload` | CWE-434 | Unrestricted file upload | `POST /profile/avatar` (`avatar` part) | `C-UPLOAD-1`, `C-INFO-2` | `src/hooks/upload.js#store` | M | [sheet](vulns/file_upload.md) |
+| 8 | `vuln/file_upload` | CWE-434 | Unrestricted file upload | `POST /upload` (`name` part) | `C-UPLOAD-1`, `C-INFO-2` | `src/hooks/upload.js#store` | M | [sheet](vulns/file_upload.md) |
 | 9 | `vuln/header_injection` | CWE-113 | HTTP header / response splitting | `GET /directory?q=` (`q`) | `C-HDR-2` | `src/http/headers.js#searchEcho` | M | [sheet](vulns/header_injection.md) |
 | 10 | `vuln/host_header_injection` | CWE-640 | Host header trust / link poisoning | `POST /forgot-password` (`Host`) | `C-COOKIE-1` | `src/security/jwt.js#resetUrl` | S | [sheet](vulns/host_header_injection.md) |
 | 11 | `vuln/idor` | CWE-639 | Direct object reference | `POST /post/:id/edit` (`id`, body) | `C-ACL-3` | `src/repositories/post.repository.js#editPost` | S | [sheet](vulns/idor.md) |
