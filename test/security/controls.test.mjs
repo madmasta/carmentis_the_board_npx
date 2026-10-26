@@ -393,6 +393,22 @@ describe('Configuration and disclosure', () => {
     }
     expect(rejected, rejected.join('\n')).toEqual([]);
   });
+
+  controlCase('C-CSRF-1', 'no request header substitutes for the token', async () => {
+    // The token is the only proof of intent. A header the caller sets freely —
+    // including one this app's own fetch calls happen to send — may not stand in
+    // for it, so the same route walk is repeated with the header present.
+    const http = await agent();
+    await loginAs(http, 'csrf-owner@test.example', 'Passw0rdLong1');
+
+    const offenders = [];
+    for (const entry of routes.filter((entry) => entry.method === 'POST')) {
+      const path = entry.path.includes(':id') ? entry.path.replace(':id', '1') : entry.path;
+      const res = await http.post(path).set('X-Requested-With', 'fetch').type('form').send({});
+      if (res.status !== 400) offenders.push(`${entry.method} ${path} -> ${res.status}`);
+    }
+    expect(offenders, offenders.join('\n')).toEqual([]);
+  });
 });
 
 describe('The branch contract itself', () => {

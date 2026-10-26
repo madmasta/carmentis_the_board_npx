@@ -267,8 +267,8 @@ rotated at login and cleared on logout; every state-changing route requires it
 before any other work.
 *Location:* `src/security/csrf.js`, `src/http/controller.js#csrf`.
 *Proof:* `test/unit/csrf.test.mjs` + `test/security/controls.test.mjs#c-csrf-1`
-(every `POST` route rejects a tokenless request with 400).
-
+(every `POST` route rejects a tokenless request with 400, and the same walk repeated
+with `X-Requested-With: fetch` set — no caller-set header substitutes for the token).
 ## Files, network, XML, commands
 
 **C-UPLOAD-1 — Upload discipline.**
