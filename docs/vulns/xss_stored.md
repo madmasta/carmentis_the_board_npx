@@ -21,8 +21,12 @@ every reader of that post, which is the highest-impact XSS in a message board.
   (`body`)
 - Parameter: `body`
 - Prerequisites: `regular` profile with board access
-- Reachability: the new-thread and reply forms; the stored value is then read by
-  `GET /board/:id`, `GET /thread/:id` and `GET /admin/posts`
+- Reachability: the new-thread and reply forms write the value; the live reader is
+  `GET /thread/:id`, whose body goes through the `markup` filter
+  (`templates/partials/post.njk`), the only raw-HTML exit in the templates.
+  `GET /board/:id` and `GET /admin/posts` render the same column through `plain`,
+  which strips markup, so those two pages stay inert on this branch — the finding
+  is bounded to the one exit, and the exploit test asserts that bound.
 
 ## Sink
 
@@ -72,15 +76,18 @@ Expected effect: the thread page and the board listing contain the live
 2. `GET /thread/:id` and assert the body contains `<img src=x onerror=` as an
    element (not `&lt;img`), and that `<strong>bold</strong>` is present, proving
    the renderer still runs its tag pass.
-3. Assert the same live element appears in `GET /board/:id` (the teaser uses
-   `plain()`) and in `GET /admin/posts`, so the payload is stored and re-rendered
-   at three readers' entry points.
-4. Assert the seeded sanitizer probe post now renders live markup as well — this
-   is the required failure of `test/security/baseline-inert.test.mjs` on this
-   branch (see the invariant below).
-5. Assert `[url]javascript:alert(1)[/url]` is still not turned into a link,
-   because `isSafeUrl` is untouched — the finding is the escaping order, not the
-   URL policy.
+3. Fetch the thread as a second, unrelated session (`outsider_olly`) and assert the
+   live element again: the value is stored, not escaped per session. Post a reply
+   with the same body and assert the thread page now carries two live elements.
+4. Assert `GET /board/:id` and `GET /admin/posts` do **not** carry the live element —
+   their bodies go through `plain()`. This is the honest bound on the sink: one raw
+   exit in the templates, not every read of the column.
+5. Assert `[url=javascript:alert(1)]…[/url]` is still not turned into a link,
+   because `isSafeUrl` and the `[url]` pattern are untouched — the finding is the
+   escaping order, not the URL policy.
+6. Assert the CSP header is still present with `script-src 'self'` and no
+   `unsafe-inline`, so the branch reads as a renderer defect rather than a policy
+   defect (see the invariant below).
 
 On `main` step 2 must show `&lt;img src=x onerror=…` as inert text and the inert
 probe test must pass.
@@ -99,8 +106,16 @@ probe test must pass.
   asserts the **document-level** presence of the element, and the CSP header
   remains asserted as still-present, which is what makes the branch a renderer
   defect rather than a policy defect.
-- `test/security/baseline-inert.test.mjs` **must fail** on this branch; the
-  harness checks that as the secondary differential (`docs/04` §8).
+- `test/security/baseline-inert.test.mjs > c-xss-1 the stored probe renders as
+  escaped text, never as markup` is the same boundary stated from the other side, so
+  it carries the `c-xss-1` slug and the branch run skips it by declaration — leaving
+  it unslugged would fail `verify:branch` without adding evidence. The other four
+  cases in that file (search echo, the one external script, the CSP header, template
+  syntax as data) must stay green on this branch.
+- Declared for the run: `C-XSS-1` only. Three cases carry that slug — two in
+  `test/unit/markup.test.mjs` (`c-xss-1 testRawHtmlIsEscaped`,
+  `c-xss-1 testScriptInsideBoldIsEscaped`) and the probe case above. The remaining 33
+  markup cases stay green.
 
 ## Fidelity to the PHP branch
 
@@ -111,18 +126,21 @@ witness in both targets.
 
 ## Carmentis evidence
 
-Capture the posted `body`, the stored value as returned by the thread page, and
-the live `<img … onerror>` element in the three listings. Expected label:
+Capture the posted `body`, the stored value as returned by the thread page, and the
+live `<img … onerror>` element in `GET /thread/:id`. Expected label:
 `CWE-79 / Stored XSS`. False-negative watch-out: the payload has to be read back
 through a second request, and the CSP header may suppress execution in a real
-browser; the reportable evidence is the unescaped element in the DOM/response, not
-the alert firing.
+browser; the reportable evidence is the unescaped element in the DOM/response, not the
+alert firing. Only `GET /thread/:id` is a live reader — a candidate that claims stored
+XSS from the board listing or the moderation feed is reading a `plain()` teaser, which
+stays inert even on this branch.
 
 ## Definition of done
 
 - [ ] `test/vulns/xss_stored.test.mjs` passes on the branch.
 - [ ] The same test fails when run from a `main` worktree.
-- [ ] `test/security/baseline-inert.test.mjs` fails on this branch and passes on `main`.
+- [ ] The three `c-xss-1` cases are skipped on the branch and green on `main`; the
+  other 33 markup cases and the other four baseline-inert cases are green on both.
 - [ ] `npm run verify:branch` green otherwise.
 - [ ] One commit off `main`; diff touches only the two listed files.
 - [ ] Commit message: `vuln: xss_stored — parse markup tags before escaping the input`.
