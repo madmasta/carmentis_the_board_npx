@@ -354,6 +354,13 @@ describe('Response headers built from request data', () => {
     expect(echoed).not.toContain(String.fromCharCode(13));
     expect(echoed).not.toContain(String.fromCharCode(10));
     expect(hostile.text).toContain('<!DOCTYPE html>');
+
+    // The diagnostic form of the same request is the one that assembles the head
+    // itself, so it is the one the control has to cover.
+    const diagnostic = await http.get('/directory?q=a%0D%0AX-Evil%3A%20pwned').set('X-Diagnostic', '1');
+    expect(diagnostic.status).toBe(200);
+    expect(diagnostic.headers['x-evil']).toBeUndefined();
+    expect(diagnostic.text).toContain('<!DOCTYPE html>');
   });
 });
 
