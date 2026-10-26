@@ -46,7 +46,7 @@ new fixture/test harness.
 | 24 | `vuln/session_management` | CWE-384 | Session fixation / id handling | `POST /login` (cookie) | `C-SESS-2`, `C-SESS-1` | `src/session/store.js#regenerate` | M | [sheet](vulns/session_management.md) |
 | 25 | `vuln/sqli` | CWE-89 | SQL injection | `GET /admin/users?q=`, `GET /directory?q=` | `C-SQL-1`, `C-SQL-2`, `C-SQL-3`, `C-DIR-1` | `src/repositories/user.repository.js#allUsers` | M | [sheet](vulns/sqli.md) |
 | 26 | `vuln/ssrf` | CWE-918 | Server-side request forgery | `POST /preview` (`url`) | `C-SSRF-1` | `src/hooks/preview.js#fetchTarget` | M | [sheet](vulns/ssrf.md) |
-| 27 | `vuln/ssti` | CWE-1336 | Server-side template injection | `POST /board/:id/import` (XML body text) | `C-SSTI-1` | `src/hooks/xml-import.js#renderText` | M | [sheet](vulns/ssti.md) |
+| 27 | `vuln/ssti` | CWE-1336 | Server-side template injection | `POST /board/:id/import` (XML body text) | `C-SSTI-1` | `src/xml/bridge.js#importBoard` | M | [sheet](vulns/ssti.md) |
 | 28 | `vuln/vulnerable_components` | CWE-1035, CWE-1104 | Known-vulnerable dependencies | `POST /reset-password` (`token`) | `C-DEP-1` | `package.json`, `package-lock.json` | S | [sheet](vulns/vulnerable_components.md) |
 | 29 | `vuln/weak_password_policy` | CWE-521 | Weak password requirements | `POST /register` (`password`) | `C-AUTH-2` | `src/security/validator.js#password` | S | [sheet](vulns/weak_password_policy.md) |
 | 30 | `vuln/xpath_injection` | CWE-643 | XPath injection | `POST /directory/search` (`q`) | `C-XPATH-1`, `C-DIR-2` | `src/hooks/xpath.js#compile` | M | [sheet](vulns/xpath_injection.md) |
