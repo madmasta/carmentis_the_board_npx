@@ -57,23 +57,27 @@ Files touched:
 POST /register
 content-type: application/x-www-form-urlencoded
 
-csrf_token=<token>&username=weak_window&email=weak@test.theboard.local&password=abc&password_confirm=abc
+csrf_token=<token>&username=weak_window&email=weak_window@test.theboard.local&password=abcd&password_confirm=abcd
 ```
 
-Expected effect: the account is created and the app auto-logs the user in.
+Expected effect: the account is created and the app auto-logs the user in. Note the
+floor is 4 characters, so `abcd` is the shortest useful payload and `abc` is still
+refused — that pair is the boundary the branch moves.
 
 ## Differential oracle
 
 `test/vulns/weak_password_policy.test.mjs`:
 
-1. Register `weak_window` with password `abc`; assert a `303` to `/` and a session
+1. Register `weak_window` with password `abcd`; assert a `303` to `/` and a session
    cookie.
-2. Log in again as `weak_window` with `abc` and assert success — the account
-   exists with a guessable credential.
+2. Log in again as `weak_window` with `abcd` and assert success — the account exists
+   with a guessable credential.
 3. Register a second account whose password equals its username (`echo` / `echo`)
    and assert success, proving the username-equality clause is gone.
-4. Try a password of `ab` and assert it is still rejected, proving the branch left
-   a floor and the finding is about the missing clauses, not about "no validation".
+4. Try `abc` and assert no account is created, then call `validator.password` directly
+   and assert it returns exactly one error mentioning 4 characters, and that `abcd`
+   passes clean. That pins the floor precisely — the form does not re-render validation
+   errors (see the note at the end), so the page alone cannot show which clause fired.
 5. Assert the seeded personas' passwords still work: the hashing path is untouched.
 
 On `main` this test must fail at step 1 with the three policy errors
@@ -87,11 +91,13 @@ is emitted.
 - Inert probe gate (docs/04 §8): stays green on this branch.
 - Registration with a strong password still succeeds, and duplicate
   username/e-mail handling is unchanged (`test/integration/auth.test.mjs`).
-- `test/unit/validator.test.mjs` skips only the password-rule cases; username,
-  e-mail, title and body rules stay enforced and asserted.
-- Login throttling still applies to the weak accounts — that control is not
-  touched by this branch.
-- `test/security/baseline-inert.test.mjs` passes.
+- `test/unit/validator.test.mjs` skips only the three slug-named password-rule cases
+  (`testPasswordLength`, `testPasswordRequiresLetterAndDigit`,
+  `testPasswordMustNotMatchUsernameOrEmail`); username, e-mail, title and body rules stay
+  enforced and asserted. The same clause has a second proof in the integration suite —
+  `test/integration/hooks.test.mjs#c-auth-2 a short password on the reset form is rejected
+  by the same validator` — which carries the slug for the same reason: the reset form uses
+  the identical validator, so a branch that loosens the policy is not judged against it.
 
 ## Fidelity to the PHP branch
 
@@ -115,4 +121,12 @@ attribute, and the rule is server-side, so the proof is an accepted registration
 - [ ] The same test fails when run from a `main` worktree.
 - [ ] `npm run verify:branch` green.
 - [ ] One commit off `main`; diff touches only the three listed files.
+
+## Known gap this sheet's wording used to hide
+
+The branch's oracle does not look for the policy error text in the registration page:
+`templates/register.njk` ignores the `errors` array the controller passes, so a failed
+registration re-renders a clean form. That is a parity defect in the port (the PHP form
+prints the messages) tracked separately from this branch; it is also why the oracle
+asserts the created/absent row and the validator's return value rather than page text.
 - [ ] Commit message: `vuln: weak_password_policy — reduce the password rule to a 4-character floor`.
