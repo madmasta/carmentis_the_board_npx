@@ -39,12 +39,17 @@ if (path.startsWith('//') || /^https?:\/\//i.test(path)) return path;
 | Control | Control text (summary) | How the diff removes it |
 |---|---|---|
 | `C-REDIR-1` | Post-login redirect restricted to internal paths | protocol-relative and absolute-http values are allowed through |
+| `C-HDR-2` | No unsanitized header writes: a `Location` must be an internal path — no scheme, no `//`, no backslash tricks | the `//` clause of `safeRedirectLocation` in `src/http/headers.js` is dropped, which is the layer that actually lets the hop through; removing only the intake turns login into a 500 |
 
 ## Minimal diff
 
 Files touched:
 
-- `src/http/auth.controller.js` — the condition above in `consumeIntendedPath()`.
+- `src/http/auth.controller.js` — the scheme-relative clause in `consumeIntendedPath()`.
+- `src/http/headers.js` — the `//` clause removed from `safeRedirectLocation()` (control characters and backslash tricks still throw).
+- `test/vulns/open_redirect.test.mjs` — new file.
+
+The absolute-URL clause stays: `http://evil.invalid/x` still collapses to `/` on this branch, and the exploit test asserts that bound, so the finding is the missing-host hop rather than an arbitrary scheme.
 - `test/vulns/open_redirect.test.mjs` — new file.
 
 ## Payload sketch
