@@ -24,10 +24,15 @@ including one that is only reachable from the server itself.
 
 ## Sink
 
-`src/hooks/preview.js` — `fetchTarget(url)`. On `main` the URL is parsed, its host
-is resolved first, and any address in loopback, RFC1918, link-local or the cloud
-metadata range is rejected; redirects are not followed; the response is capped at
-64 KiB and 5 s. The branch drops the address-class check and follows redirects.
+`src/hooks/preview.js` — `preview(rawUrl)` composes four steps: `parseTarget()`
+(scheme, credentials, hostname shape), `resolveTarget()` (resolve first, then
+`isBlockedAddress()` on every answer — loopback, RFC1918, link-local, metadata),
+`limitedFetch()` (no redirect following — a 3xx is reported as `{ redirected: true }`
+— with a 64 KiB read cap and a 5 s timeout), and `extractCard()`.
+
+The branch deletes the address-class decision — `preview()` no longer calls
+`resolveTarget()`, it proceeds on the parsed URL — and makes the transport follow
+`Location` up to five hops:
 
 ## Baseline control removed
 
@@ -39,8 +44,12 @@ metadata range is rejected; redirects are not followed; the response is capped a
 
 Files touched:
 
-- `src/hooks/preview.js` — remove the `assertPublicAddress()` call and pass
-  `redirect: 'follow'` to the fetch.
+- `src/hooks/preview.js` — `preview()` replaces the `resolveTarget()` gate with a
+  pass-through, and `limitedFetch()` gains a `follow(target, hops)` helper that
+  re-issues the request on a 3xx (bounded at 5 hops, still under the same timeout and
+  read cap). `parseTarget()`, `isBlockedAddress()` and `resolveTarget()` stay in the
+  file, uncalled — which is why the `c-ssrf-1` proofs are declared rather than left to
+  pass.
 - `test/vulns/ssrf.test.mjs` — new file.
 
 ## Payload sketch
