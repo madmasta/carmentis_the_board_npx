@@ -106,10 +106,10 @@ probe test must pass.
   asserts the **document-level** presence of the element, and the CSP header
   remains asserted as still-present, which is what makes the branch a renderer
   defect rather than a policy defect.
+- Inert probe gate (docs/04 §8): broken on this branch.
 - `test/security/baseline-inert.test.mjs` is **not** declared away and carries no
   control slug for that reason (`docs/04` §8): `verify:branch` runs it as its own step
-  and expects this branch to break it, as one of the five XSS-family branches the spec
-  names. Its other four cases (search echo, the one external script, the CSP header,
+  and expects this branch to break it. Its other four cases (search echo, the one external script, the CSP header,
   template syntax as data) stay green here — only the stored-probe case may fail.
 - Declared for the run: `C-XSS-1` only. Two cases carry that slug, both in
   `test/unit/markup.test.mjs` (`testRawHtmlIsEscaped — c-xss-1 …`,

@@ -154,13 +154,22 @@ Exit code is non-zero unless all 35 rows are `PASS`.
 `test/security/baseline-inert.test.mjs` renders the seeded sanitizer probe post
 and asserts the output contains no executable construct: no `<script`, no
 `onerror=`, no `javascript:` or `data:text/html` in an attribute, and that the
-raw text of the probe still appears as escaped text. This file must pass on
-`main` and must fail on every XSS-family branch (`xss_stored`, `xss_reflected`,
-`xss_dom`, `xss_config`, `ssti`) — that is a secondary differential the harness
-checks alongside the branch's own test. This gate is **not** a proof case of any
-control, which is why an XSS branch can fail it without declaring `C-XSS-3`.
-`verify:branch` runs it separately and expects it to fail on exactly those five
-branches and to pass on the other thirty.
+raw text of the probe still appears as escaped text. This gate is **not** a proof
+case of any control, which is why a branch can break it without declaring a control
+away, and its cases carry no slug so no branch can skip it by declaring one.
+
+Which branches must break it is stated per branch, in the sheet's Must-not-break
+invariants, on exactly one line:
+
+- `- Inert probe gate (docs/04 §8): broken on this branch.` — the branch renders
+  stored markup live, so the seeded probe becomes executable and the gate must fail;
+- `- Inert probe gate (docs/04 §8): stays green on this branch.` — the branch cannot
+  reach the stored probe, so the gate must pass.
+
+A sheet that omits the line is a spec gap: `verify:branch` refuses to guess and fails
+the run. `verify:branch` runs the gate as its own step (never inside the baseline
+suite, where a declared-control exclusion could swallow it), so a branch that claims
+to break the gate and does not is caught, and so is one that breaks it silently.
 
 Case-name rule for branch exclusion: a proof case names the control it proves with a
 lowercased slug (`c-sql-1 …`), and `verify:branch` excludes cases whose name contains a
