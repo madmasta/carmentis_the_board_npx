@@ -37,12 +37,19 @@ Two configuration points, not a handler:
   `object-src` with it. `X-Frame-Options: DENY` stays — the ported header block is not
   touched (that would reach outside the declared controls), so framing is weakened rather
   than removed, and the branch's test asserts the header is still there.
-- `templates/directory.njk` — the search-summary echo is wrapped in the template-level
-  switch instead of relying on the environment default:
+- `templates/directory.njk` — the search-summary echo opts out of the encoding default
+  with the filter the engine provides:
 
   ```njk
-  {% autoescape false %}<span class="q-value">{{ q }}</span>{% endautoescape %}
+  <span class="q-value">{{ q|safe }}</span>
   ```
+
+  There is no per-template encoding switch in Nunjucks: `{% autoescape false %}` is a
+  Jinja tag, and using it here fails at render time with `unknown block tag: autoescape`.
+  The environment-wide `autoescape: false` does exist but takes the whole suite with it
+  (no template in this port escapes by hand), so the encoding half of this branch is the
+  `|safe` fence being applied to a request-derived value — which is precisely the fence
+  C-XSS-2 draws.
 
 `src/views.js` keeps `autoescape: true`, and `src/security/markup.js` is untouched: the
 sanitizer still escapes stored posts. That combination is the class — the mechanism is
@@ -54,12 +61,14 @@ post.
 | Control | Control text (summary) | How the diff removes it |
 |---|---|---|
 | `C-XSS-3` | Pinned CSP: `script-src 'self'`, `frame-ancestors 'none'`, `object-src 'none'`, `base-uri 'none'`, `form-action 'self'` | the policy constant is replaced with the relaxed one; the framing directive disappears with it, while `X-Frame-Options` (a C-HDR-1 header, not declared away) stays |
-| `C-XSS-2` | Output encoding on both exits: autoescape on with `|safe` fenced to the renderer, and the app's own script using inert sinks | the environment default is overridden for a request-derived echo by `{% autoescape false %}` in the template |
+| `C-XSS-2` | Output encoding on both exits: autoescape on with `|safe` fenced to the renderer, and the app's own script using inert sinks | `|safe` is applied to `q`, a request-derived value, which is the one use the fence forbids |
 
-The register has a probe for each half: the CSP case compares three response shapes
-against `CSP_PINNED`, and the autoescape case asserts `autoescape: true` in
-`src/views.js` with no `{% autoescape false %}` in any template. Both fail here, so the
-audit case cannot accuse the sheet of claiming a downgrade it did not make.
+The register has probes for both halves. The CSP case compares three response shapes
+against `CSP_PINNED` and fails here. The `|safe` case scans every template for a `|safe`
+that does not wrap the markup renderer, and fails here on the directory echo. (A third
+case — `autoescape: true` in `src/views.js`, no `{% autoescape false %}` anywhere — stays
+green on this branch and exists to keep the environment default itself fenced.) The audit
+case therefore has real evidence for both declared controls.
 
 ## Minimal diff
 
@@ -67,8 +76,7 @@ Files touched:
 
 - `src/security/headers-policy.js` — the relaxed policy constant, and no
   `X-Frame-Options`.
-- `templates/directory.njk` — the `q-value` echo wrapped in
-  `{% autoescape false %}…{% endautoescape %}`.
+- `templates/directory.njk` — `|safe` on the `q-value` echo of the search term.
 - `test/vulns/xss_config.test.mjs` — new file.
 
 No other template changes: every other reflection point keeps relying on autoescape,
@@ -92,8 +100,10 @@ an inline handler, likewise permitted by the relaxed policy.
 `test/vulns/xss_config.test.mjs`:
 
 1. Sign in as `regular_rita` and `GET /directory?q=<script payload>`.
-2. Assert the response contains `<script>document.title='config-xss'</script>` verbatim,
-   and not `&lt;script&gt;` — the echo is not encoded.
+2. Assert the `<span class="q-value">` region *is* `<script>document.title='config-xss'</script>`
+   verbatim — the echo is not encoded — while the same value in the search field's `value`
+   attribute stays escaped (`&lt;script&gt;document.title`). That pairing is what shows the
+   encoding default is intact everywhere except the one fenced filter.
 3. Assert `Content-Security-Policy` contains `unsafe-inline` and `unsafe-eval`, and
    **does not** contain `frame-ancestors`, `object-src`, `base-uri` or `form-action` — the
    second layer is gone, which is the configuration half of the finding and the part that
@@ -159,7 +169,13 @@ query parser may otherwise mangle.
 
 ## Correction history
 
-The first version of this sheet turned `autoescape` off in `src/views.js` globally and
+Two mechanism claims turned out not to exist. `{% autoescape false %}` is a Jinja tag, not
+Nunjucks: the template compiles and then throws `unknown block tag: autoescape` at render
+time, which would have made the branch a 500 rather than a vulnerability. The encoding
+half is therefore `{{ q|safe }}` on the directory echo — the same filter the C-XSS-2 fence
+governs, which is why that control's register probe fails on this branch.
+
+The first version of this sheet also turned `autoescape` off in `src/views.js` globally and
 claimed the rest of the suite would survive "because each template has an explicit
 escape". No template in this port escapes by hand — autoescape is the default the whole
 suite relies on — so a global switch takes the baseline suite down with it and the branch
