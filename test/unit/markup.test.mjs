@@ -104,11 +104,13 @@ describe('markup', () => {
     expect(out).toContain('&quot;');
   });
 
-  it('testRawHtmlIsEscaped', () => {
+  // The slug marks what these two prove: C-XSS-1 is the escape-the-whole-input-
+  // first boundary, and `vuln/xss_stored` inverts it (docs/04 §6).
+  it('c-xss-1 testRawHtmlIsEscaped', () => {
     expect(render('<script>alert(1)</script>')).toBe('&lt;script&gt;alert(1)&lt;/script&gt;');
   });
 
-  it('testScriptInsideBoldIsEscaped', () => {
+  it('c-xss-1 testScriptInsideBoldIsEscaped', () => {
     expect(render('[b]<script>alert(1)</script>[/b]')).toBe('<strong>&lt;script&gt;alert(1)&lt;/script&gt;</strong>');
   });
 
