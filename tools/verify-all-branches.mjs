@@ -126,8 +126,13 @@ function linkNodeModules(worktree) {
 }
 
 function topology(slug) {
-  const commits = git(['rev-list', '--count', `main..vuln/${slug}`]);
-  const files = git(['diff', '--name-only', `main..vuln/${slug}`]);
+  // Measured from the merge-base, not from main's tip: main keeps moving while
+  // branches are being built, and `main..branch` would then report main's own new
+  // commits and file changes as the branch's.
+  const base = git(['merge-base', 'main', `vuln/${slug}`]).out;
+  if (base === '') return { commits: 0, changed: [], extra: [] };
+  const commits = git(['rev-list', '--count', `${base}..vuln/${slug}`]);
+  const files = git(['diff', '--name-only', `${base}..vuln/${slug}`]);
   const changed = files.out === '' ? [] : files.out.split(/\r?\n/);
   const allowed = sheetAllowedFiles(slug);
   // The branch's own exploit test is part of the branch by contract (docs/06),
