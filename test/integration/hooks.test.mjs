@@ -56,7 +56,7 @@ beforeEach(async () => {
 });
 
 describe('avatar upload (POST /profile/avatar, GET /avatar/:id)', () => {
-  it('accepts a real png and serves it back with a fixed content type', async () => {
+  it('c-upload-1 accepts a real png and serves it back with a fixed content type', async () => {
     const http = await signIn();
     const token = await csrfToken(http, '/profile');
 
@@ -105,7 +105,7 @@ describe('avatar upload (POST /profile/avatar, GET /avatar/:id)', () => {
     }
   });
 
-  it('GET /attachment serves a stored upload by its generated name', async () => {
+  it('c-upload-1 GET /attachment serves a stored upload by its generated name', async () => {
     const http = await signIn();
     const token = await csrfToken(http, '/profile');
     await http.post('/profile/avatar').field('csrf_token', token).attach('avatar', PNG, 'me.png');
