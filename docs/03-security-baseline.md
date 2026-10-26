@@ -242,7 +242,7 @@ through `res.setHeader`/`res.writeHead`; values derived from request data
 No `Access-Control-Allow-*` header is ever emitted; no origin reflection; no
 `OPTIONS` preflight handler.
 *Location:* `src/http/headers.js`.
-*Proof:* `test/unit/headers.test.mjs#cors-closed`.
+*Proof:* `test/unit/headers.test.mjs` — `c-hdr-3 cors-closed: no CORS header can ever be emitted`.
 
 **C-COOKIE-1 — Cookie host binding.**
 The session cookie name and flags come from configuration, never from a request

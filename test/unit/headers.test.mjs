@@ -53,7 +53,7 @@ describe('security headers', () => {
     expect(() => assertSafeHeader('', 'v')).toThrow(UnsafeHeaderValue);
   });
 
-  it('cors-closed: no CORS header can ever be emitted', () => {
+  it('c-hdr-3 cors-closed: no CORS header can ever be emitted', () => {
     const res = fakeRes();
     expect(() => setHeader(res, 'Access-Control-Allow-Origin', '*')).toThrow(UnsafeHeaderValue);
     expect(() => setHeader(res, 'Access-Control-Allow-Credentials', 'true')).toThrow(UnsafeHeaderValue);
