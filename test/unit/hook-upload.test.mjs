@@ -129,7 +129,7 @@ describe('avatar upload (C-UPLOAD-1)', () => {
     }
   });
 
-  it('serves only the allowlisted content type for a stored name', () => {
+  it('c-upload-1 serves only the allowlisted content type for a stored name', () => {
     expect(typeOfStored('11111111-2222-3333-4444-555555555555.png').mime).toBe('image/png');
     expect(typeOfStored('11111111-2222-3333-4444-555555555555.php')).toBeNull();
   });
