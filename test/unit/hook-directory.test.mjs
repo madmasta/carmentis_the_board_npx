@@ -12,6 +12,8 @@ import {
   evalFilter,
   list,
   parseFilter,
+  matchDirectory,
+  parseCriteria,
   renderFilter,
   searchDocs,
   tokenize,
@@ -194,6 +196,37 @@ describe('directory advanced filter (C-DIR-1, C-DIR-2)', () => {
   // The one-character version of the same rule: `*` is the grammar's wildcard, and
   // on this path the caller's `*` reaches the evaluator escaped, so it is data.
   // `vuln/ldap_injection` removes the escaping, and this becomes a match-all search.
+  // C-DIR-2, document half: the criteria parser is the trust boundary between a
+  // request and the operator grammar in the matcher.
+  it('c-dir-2 a criteria document with an operator leaf is refused', () => {
+    expect(() => parseCriteria('{"username":{"$ne":"x"}}')).toThrow('must be scalars');
+    expect(() => parseCriteria('{"role":{"$in":["admin","user"]}}')).toThrow('must be scalars');
+    expect(() => parseCriteria('{"username":{"$exists":true}}')).toThrow('must be scalars');
+  });
+
+  // Kept on the branch on purpose: the field allowlist is the other half of C-DIR-2,
+  // and `vuln/nosql_injection` removes only the scalar-leaf rule — so this case is
+  // not slugged and stays green there.
+  it('a criteria document may only name a projected field', () => {
+    expect(() => parseCriteria('{"password_hash":"x"}')).toThrow('Unknown criteria field');
+    expect(() => parseCriteria('{"id":"1"}')).toThrow('Unknown criteria field');
+    expect(() => parseCriteria('not json')).toThrow('must be a JSON object');
+    expect(() => parseCriteria('[]')).toThrow('must be a JSON object');
+  });
+
+  it('a stored criteria document compares with the operator grammar', () => {
+    const docs = [
+      { username: 'alice', role: 'user', created_at: '2024-01-01', post_count: 5 },
+      { username: 'bob', role: 'admin', created_at: '2023-06-01', post_count: 0 },
+    ];
+    // Scalar leaves contain; operator leaves compare. Both go through one matcher.
+    expect(matchDirectory(docs, [{ field: 'role', value: 'adm' }]).map((d) => d.username)).toEqual(['bob']);
+    expect(matchDirectory(docs, [{ field: 'username', value: { $ne: 'nobody' } }])).toHaveLength(2);
+    expect(matchDirectory(docs, [{ field: 'username', value: { $regex: '^b' } }]).map((d) => d.username)).toEqual(['bob']);
+    expect(matchDirectory(docs, [{ field: 'post_count', value: { $gte: '1' } }]).map((d) => d.username)).toEqual(['alice']);
+    expect(matchDirectory(docs, [{ field: 'username', value: { $bogus: 1 } }])).toEqual([]);
+  });
+
   it('c-dir-1 a wildcard term stays literal in filter mode', async () => {
     expect((await searchDocs(docs, '*')).users).toEqual([]);
     expect((await searchDocs(docs, 'role:*')).users).toEqual([]);

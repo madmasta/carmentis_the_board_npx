@@ -47,6 +47,24 @@
 </section>
 
 <section class="panel">
+    <h2>Criteria document</h2>
+    <form method="post" action="/directory/match" class="stack">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <label>Criteria (JSON)
+            <textarea name="criteria" rows="3" class="mono" placeholder='{"username": "own", "role": "user"}'>{{ criteria | default('', true) }}</textarea>
+        </label>
+        <button type="submit" class="btn btn-primary">Match documents</button>
+    </form>
+    {% if criteria_error %}
+        <p class="flash flash-error">{{ criteria_error }}</p>
+    {% endif %}
+    <p class="hint">
+        Criteria compare as text — a value matches when the field contains it. Only the
+        columns this page shows can be named, and a request&#39;s criteria hold plain values.
+    </p>
+</section>
+
+<section class="panel">
     <h2>{{ people | default([], true) | length }} {{ 'person' if (people | default([], true) | length) == 1 else 'people' }}</h2>
     {% if people | default([], true) | length == 0 %}
         <p class="empty-state">Nobody matches that filter.</p>

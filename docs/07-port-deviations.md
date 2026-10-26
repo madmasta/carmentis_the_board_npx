@@ -61,7 +61,7 @@ of the PHP behaviour, and the sheet's fidelity section states it.
 
 | Catalog class | PHP-style mechanism | Node-native analogue used here |
 |---|---|---|
-| `nosql_injection` | MongoDB operator objects | operator/query objects (`$ne`, `$gt`, `$regex`) accepted by the directory hook's document-matching layer, which exists because snapshots are stored as JSON documents |
+| `nosql_injection` | MongoDB operator objects | operator leaves (`$ne`, `$in`, `$exists`, `$regex`, `$gt`/`$gte`/`$lt`/`$lte`) interpreted by the directory hook's criteria-document matcher (`hooks/directory.js#matchDirectory` → `#matchEntry`), fed by `POST /directory/match`. `#parseCriteria` is the trust boundary: a request document must carry scalar leaves, so on `main` the operator grammar is reachable only for documents that came out of storage. The documents are the directory's own five-column rows, evaluated in-process — no document database runs in either target |
 | `ldap_injection` | `ldap_search` filter string | the directory hook builds an LDAP-shaped filter string for its "advanced search" (`mode=filter`) and evaluates it in-process with its own parser (`hooks/directory.js#renderFilter` → `#parseFilter` → `#evalFilter`); no LDAP server runs in either target. The grammar is the subset `(&…)`, `(|…)`, `(!…)`, `(attr=value)`, `(attr=*sub*)` — it has no ordering operators, so `joined>`-style tokens are refused in this mode. Injection breaks out of a filter component |
 | `xpath_injection` | DOMDocument XPath | `@xmldom/xmldom` + `xpath` over the exported board document; injection breaks out of the predicate |
 | `xxe` | `libxml` entity resolution | in-house reader's entity resolver |

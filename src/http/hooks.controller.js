@@ -8,7 +8,7 @@ import * as boards from '../repositories/board.repository.js';
 import * as postsRepo from '../repositories/post.repository.js';
 import * as users from '../repositories/user.repository.js';
 import { exportBoard, importBoard } from '../xml/bridge.js';
-import { directoryDocs, list as directoryList, searchDocs } from '../hooks/directory.js';
+import { directoryDocs, list as directoryList, matchDirectory, parseCriteria, searchDocs } from '../hooks/directory.js';
 import { search as xpathSearch } from '../hooks/xpath.js';
 import { exportThread } from '../hooks/export.js';
 import { inspect, readStored, removeStored, resolveStored, store, typeOfStored } from '../hooks/upload.js';
@@ -203,6 +203,28 @@ export async function directory(ctx) {
   }
 
   view(ctx, 'directory', { title: 'Staff directory', people: rows, q, role, mode, filter_error: error });
+}
+
+/**
+ * POST /directory/match — a criteria document against the directory documents.
+ *
+ * C-DIR-2 lives in `parseCriteria`: a request's document holds scalar values only.
+ * The operator grammar in the matcher is for documents that came out of storage;
+ * letting a request carry `{"username": {"$ne": "x"}}` hands the caller that grammar.
+ */
+export async function directoryMatch(ctx) {
+  requireLogin(ctx);
+  const criteria_text = post(ctx, 'criteria') ?? '';
+
+  let rows = [];
+  let error = null;
+  try {
+    rows = matchDirectory(await directoryDocs(), parseCriteria(criteria_text));
+  } catch (problem) {
+    error = problem.message;
+  }
+
+  view(ctx, 'directory', { title: 'Staff directory', people: rows, criteria: criteria_text, criteria_error: error });
 }
 
 /** POST /directory/search — the saved XPath search over the same rows. */

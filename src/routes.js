@@ -97,6 +97,7 @@ export const routes = buildTable([
   { method: 'POST', path: '/board/:id/import', guard: 'login', handler: hooks.boardImport },
   { method: 'GET', path: '/directory', guard: 'login', csrf: false, handler: hooks.directory },
   { method: 'POST', path: '/directory/search', guard: 'login', handler: hooks.directorySearch },
+  { method: 'POST', path: '/directory/match', guard: 'login', handler: hooks.directoryMatch },
   { method: 'GET', path: '/admin/boards/:id/snapshot.json', guard: 'admin', csrf: false, handler: hooks.boardSnapshot },
   { method: 'POST', path: '/admin/boards/:id/restore', guard: 'admin', handler: hooks.boardRestore },
   { method: 'GET', path: '/thread/:id/export', guard: 'login', csrf: false, handler: hooks.threadExport },

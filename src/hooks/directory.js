@@ -443,3 +443,113 @@ export async function list(raw = '', role = '', { limit = 100 } = {}) {
   const rowsOut = await query(parts.join(' '), [...params, capped]);
   return rowsOut.map((row) => Object.fromEntries(PROJECTION.map((key) => [key, row[key]])));
 }
+
+/**
+ * The document criteria grammar.
+ *
+ * A criteria document is `{"field": value, …}`. A scalar value means "this text,
+ * contained, case-insensitively"; an operator object (`{"username": {"$ne": "x"}}`)
+ * means a comparison. The two shapes arrive from different places and get different
+ * trust: a criteria document typed into a request must hold scalars only, while a
+ * document that came out of storage may carry operators. That boundary is C-DIR-2 —
+ * `parseCriteria` is where it is drawn, and the matcher below is what an unguarded
+ * caller would hand straight to the caller's own operators.
+ */
+export const MATCH_FIELDS = new Set(['username', 'role', 'created_at', 'post_count']);
+export const MATCH_OPERATORS = new Set(['$eq', '$ne', '$in', '$exists', '$regex', '$gt', '$gte', '$lt', '$lte']);
+export const MAX_CRITERIA_BYTES = 4096;
+
+/**
+ * Parse a criteria document from a request. C-DIR-2: every value must be a scalar
+ * and every field must be one the projection carries. An operator leaf is refused
+ * here rather than interpreted, so the operator grammar in `matchEntry` is only
+ * reachable for documents that came from storage.
+ */
+export function parseCriteria(text) {
+  if (typeof text !== 'string' || text.trim() === '') {
+    throw new FilterError('Directory criteria are required.');
+  }
+  if (text.length > MAX_CRITERIA_BYTES) {
+    throw new FilterError('Directory criteria are too large.');
+  }
+  let doc;
+  try {
+    doc = JSON.parse(text);
+  } catch {
+    throw new FilterError('Directory criteria must be a JSON object.');
+  }
+  if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) {
+    throw new FilterError('Directory criteria must be a JSON object.');
+  }
+  const entries = Object.entries(doc);
+  if (entries.length === 0) throw new FilterError('Directory criteria are required.');
+  for (const [field, value] of entries) {
+    if (!MATCH_FIELDS.has(field)) throw new FilterError(`Unknown criteria field: ${field}`);
+    if (value !== null && !['string', 'number', 'boolean'].includes(typeof value)) {
+      throw new FilterError('Directory criteria values must be scalars.');
+    }
+  }
+  return entries.map(([field, value]) => ({ field, value: value === null ? '' : String(value) }));
+}
+
+function asText(value) {
+  return value === null || value === undefined ? null : String(value);
+}
+
+/** One criteria entry against one document. The operator leaves live here. */
+function matchEntry(doc, entry) {
+  const present = Object.hasOwn(doc, entry.field);
+  const actual = asText(doc[entry.field]);
+  const { value } = entry;
+
+  if (typeof value === 'object' && value !== null) {
+    for (const [op, operand] of Object.entries(value)) {
+      if (!MATCH_OPERATORS.has(op)) return false;
+      switch (op) {
+        case '$eq':
+          if (actual !== asText(operand)) return false;
+          break;
+        case '$ne':
+          if (actual === asText(operand)) return false;
+          break;
+        case '$in':
+          if (!Array.isArray(operand) || !operand.some((v) => actual === asText(v))) return false;
+          break;
+        case '$exists':
+          if (present !== Boolean(operand)) return false;
+          break;
+        case '$regex': {
+          let source;
+          try {
+            source = new RegExp(String(operand), 'i');
+          } catch {
+            return false;
+          }
+          if (actual === null || !source.test(actual)) return false;
+          break;
+        }
+        case '$gt':
+        case '$gte':
+        case '$lt':
+        case '$lte': {
+          if (actual === null) return false;
+          const order = actual.localeCompare(asText(operand));
+          const wanted = { $gt: order > 0, $gte: order >= 0, $lt: order < 0, $lte: order <= 0 }[op];
+          if (!wanted) return false;
+          break;
+        }
+        default:
+          return false;
+      }
+    }
+    return true;
+  }
+
+  if (actual === null) return false;
+  return actual.toLowerCase().includes(asText(value).toLowerCase());
+}
+
+/** Evaluate a criteria document against directory documents. */
+export function matchDirectory(docs, criteria) {
+  return docs.filter((doc) => criteria.every((entry) => matchEntry(doc, entry)));
+}

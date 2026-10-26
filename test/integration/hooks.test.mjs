@@ -272,6 +272,52 @@ describe('staff directory (GET /directory, POST /directory/search)', () => {
   });
 });
 
+  // C-DIR-2 over HTTP: a criteria document may name a projected field and hold a
+  // scalar value, and nothing more. `vuln/nosql_injection` removes the scalar rule,
+  // which is what lets an operator leaf reach the document matcher.
+  it('c-dir-2 a criteria document with an operator leaf never reaches the matcher', async () => {
+    const http = await signIn();
+
+    const bad = await postForm(
+      http,
+      '/directory/match',
+      { criteria: '{"username":{"$ne":"x"},"role":{"$ne":"impossible"}}' },
+      '/directory',
+    );
+    expect(bad.status).toBe(200);
+    expect(bad.text).toContain('Directory criteria values must be scalars.');
+    expect(bodyOf(bad.text), 'the operator leaf must not select rows').toBe('');
+
+    for (const leaf of ['{"username":{"$regex":"^h"}}', '{"username":{"$exists":true}}', '{"role":{"$in":["admin"]}}']) {
+      const probe = await postForm(http, '/directory/match', { criteria: leaf }, '/directory');
+      expect(bodyOf(probe.text), `${leaf} must not select rows`).toBe('');
+      expect(probe.text).toContain('must be scalars');
+    }
+  });
+
+  // Not slugged: the field allowlist, the JSON shape rules and the CSRF guard all
+  // survive `vuln/nosql_injection`, so this case must stay green on that branch too.
+  it('a criteria document names a projected field and compares as text', async () => {
+    const http = await signIn();
+
+    const scalar = await postForm(http, '/directory/match', { criteria: '{"username":"hook-pleb"}' }, '/directory');
+    expect(scalar.status).toBe(200);
+    expect(bodyOf(scalar.text)).toContain('hook-pleb');
+    expect(bodyOf(scalar.text)).not.toContain('hook-admin');
+
+    const unknownField = await postForm(http, '/directory/match', { criteria: '{"password_hash":"x"}' }, '/directory');
+    expect(unknownField.text).toContain('Unknown criteria field: password_hash');
+    expect(unknownField.text).not.toContain('$2y$');
+    expect(unknownField.text).not.toContain('$2b$');
+
+    const malformed = await postForm(http, '/directory/match', { criteria: 'not json' }, '/directory');
+    expect(malformed.text).toContain('Directory criteria must be a JSON object.');
+
+    const anon = await agent();
+    const tokenless = await anon.post('/directory/match').type('form').send({ criteria: '{"username":"hook-pleb"}' });
+    expect(tokenless.status).toBe(400); // the CSRF check runs before the login redirect
+  });
+
 describe('board snapshot (GET /admin/boards/:id/snapshot.json, POST …/restore)', () => {
   it('exports a snapshot an admin can read back', async () => {
     const http = await signIn();
