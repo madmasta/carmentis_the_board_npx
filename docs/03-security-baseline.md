@@ -90,8 +90,9 @@ The same rule applies client-side: the one script CSP allows
 (`textContent`, `setAttribute`) — never `innerHTML`, `outerHTML`,
 `insertAdjacentHTML` or `document.write`.
 *Location:* `src/views.js`, all templates, `public/assets/app.js`.
-*Proof:* `test/security/controls.test.mjs#c-xss-2` (two cases: the `|safe` scan and
-the client-sink scan) and `test/security/baseline-inert.test.mjs`.
+*Proof:* `test/security/controls.test.mjs#c-xss-2` (three cases: the `|safe` scan, the
+client-sink scan, and the autoescape-configuration scan) and
+`test/security/baseline-inert.test.mjs`.
 
 **C-XSS-3 — Content-Security-Policy.**
 Sent on every response:

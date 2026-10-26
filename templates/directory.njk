@@ -16,9 +16,10 @@
         <button type="submit" class="btn btn-sm">Filter</button>
     </form>
     {% if q %}
-        {# Deliberately empty in the response: the term is filled in by app.js from
-           location.search, which is what makes it a client-side write (C-XSS-2). #}
-        <p class="hint">Searching for: <span data-q-chip></span></p>
+        {# Two copies on purpose: `q-value` is the no-JS echo (server-rendered, escaped),
+           and `data-q-chip` is deliberately empty in the response and filled by app.js
+           from location.search — that one is the client-side write C-XSS-2 fences. #}
+        <p class="hint">Searching for: <span class="q-value">{{ q }}</span><span class="chip" data-q-chip></span></p>
     {% endif %}
     {% if filter_error %}
         <p class="flash flash-error">{{ filter_error }}</p>

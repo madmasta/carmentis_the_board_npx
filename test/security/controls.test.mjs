@@ -179,6 +179,18 @@ describe('Output encoding and templates', () => {
     expect(script).toMatch(/chip\.textContent\s*=/);
   });
 
+  controlCase('C-XSS-2', 'autoescape is on in the view environment and no template turns it off', () => {
+    const views = readFileSync(join(root(), 'src', 'views.js'), 'utf8');
+    expect(views).toMatch(/autoescape:\s*true/);
+    expect(views).not.toMatch(/autoescape:\s*false/);
+    for (const dir of ['templates']) {
+      for (const file of sourceFiles(dir)) {
+        const text = readFileSync(join(root(), file), 'utf8');
+        expect(text, `${file} turns autoescape off`).not.toMatch(/\{%-?\s*autoescape\s+false/);
+      }
+    }
+  });
+
   controlCase('C-XSS-3', 'the pinned CSP is on every response shape', async () => {
     const owner = await makeUser('csp-owner', 'csp-owner@test.example', 'Passw0rdLong1', 'admin');
     const boardId = Number((await makeBoard('CSP Board', true, Number(owner.id))).id);
