@@ -37,7 +37,7 @@ new fixture/test harness.
 | 15 | `vuln/ldap_injection` | CWE-90 | LDAP-style filter injection | `GET /directory?q=` (`q`) | `C-DIR-1` | `src/hooks/directory.js#buildFilter` | M | [sheet](vulns/ldap_injection.md) |
 | 16 | `vuln/log_injection` | CWE-117 | Log forging | any request (`User-Agent`, path) | `C-INFO-3` | `src/http/server.js#logRequest` | S | [sheet](vulns/log_injection.md) |
 | 17 | `vuln/mass_assignment` | CWE-915 | Mass parameter assignment | `POST /profile` (`role`) | `C-ASSIGN-1` (field-allowlist clause) | `src/http/profile.controller.js#update` | M | [sheet](vulns/mass_assignment.md) |
-| 18 | `vuln/nosql_injection` | CWE-917 | Operator injection in a document query | `GET /directory?q[$ne]=` | `C-DIR-2` | `src/hooks/directory.js#matchDoc` | S | [sheet](vulns/nosql_injection.md) |
+| 18 | `vuln/nosql_injection` | CWE-917 | Operator injection in a document query | `POST /directory/match` (`criteria`) | `C-DIR-2` | `src/hooks/directory.js#parseCriteria` | S | [sheet](vulns/nosql_injection.md) |
 | 19 | `vuln/open_redirect` | CWE-601 | URL redirection to untrusted site | `GET /login?next=//…` | `C-REDIR-1` | `src/http/auth.controller.js#consumeIntendedPath` | S | [sheet](vulns/open_redirect.md) |
 | 20 | `vuln/path_traversal` | CWE-22 | Path traversal | `GET /attachment?file=../` | `C-UPLOAD-1`, `C-INFO-2` | `src/hooks/upload.js#readAttachment` | M | [sheet](vulns/path_traversal.md) |
 | 21 | `vuln/race_condition` | CWE-362 | Race condition / single-use bypass | `POST /mfa` (`code`) | `C-RACE-1` | `src/security/mfa.js#verify` | M | [sheet](vulns/race_condition.md) |
