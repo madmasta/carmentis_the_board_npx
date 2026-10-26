@@ -210,6 +210,11 @@ describe('Output encoding and templates', () => {
 
     // No inline script or inline handler anywhere in the rendered page.
     expect(thread.text).not.toMatch(/<script>(?!\s*<\/script>)/);
+
+    // The static asset is a response too: CSP forbids inline script, so the external
+    // file is the only script source.
+    const asset = await anon.get('/assets/app.js');
+    expect(asset.headers['content-security-policy']).toBe(CSP_PINNED);
     expect(thread.text).not.toMatch(/\son[a-z]+\s*=/i);
     expect(thread.text).not.toMatch(/href="javascript:/i);
   });
