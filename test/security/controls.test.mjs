@@ -336,6 +336,24 @@ describe('Authorization and bodies', () => {
   });
 });
 
+describe('Guard consistency across routes', () => {
+  controlCase('C-ACL-4', 'no route reaches a login-only capability as anon', async () => {
+    // The route table is the product's access model. A handler that enforces a
+    // session itself may still not be mounted on an anonymous route: that is the
+    // disagreement `auth_requirement_mismatch` creates, and the mismatch is the
+    // finding even before the handler's own check is looked at.
+    const entries = (await import('../../src/routes.js')).routes;
+    const mismatched = [];
+
+    for (const entry of entries) {
+      const body = String(entry.handler);
+      const enforcesSession = /requireLogin\s*\(/.test(body) || /requireAdmin\s*\(/.test(body);
+      if (enforcesSession && entry.guard === 'anon') mismatched.push(`${entry.method} ${entry.path}`);
+    }
+    expect(mismatched, mismatched.join(', ')).toEqual([]);
+  });
+});
+
 describe('Headers and commands', () => {
   controlCase('C-HDR-1', 'the baseline header set is on a 200, a 404 and a 403', async () => {
     const owner = await makeUser('hdr-owner', 'hdr-owner@test.example', 'Passw0rdLong1', 'admin');
