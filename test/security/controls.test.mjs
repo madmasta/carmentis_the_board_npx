@@ -282,6 +282,29 @@ describe('Authorization and bodies', () => {
     expect(await count('SELECT COUNT(*) FROM posts WHERE title = ?', ['bulk'])).toBe(0);
   });
 
+  controlCase('C-REDIR-1', 'the post-login target never leaves the site', async () => {
+    const targets = ['//evil.invalid/phish', 'http://evil.invalid/phish', 'https://evil.invalid/', '\/evil.invalid', 'javascript:alert(1)'];
+    await makeUser('redir-probe', 'redir-probe@test.example', 'Passw0rdLong1');
+    const leaked = [];
+
+    for (const target of targets) {
+      const http = await agent();
+      await http.get(`/login?next=${encodeURIComponent(target)}`);
+      const res = await postForm(http, '/login', { email: 'redir-probe@test.example', password: 'Passw0rdLong1' }, '/login');
+      if (res.status === 303 && res.headers.location !== '/' && !String(res.headers.location).startsWith('/')) {
+        leaked.push(`${target} -> ${res.headers.location}`);
+      }
+    }
+    expect(leaked, leaked.join(String.fromCharCode(10))).toEqual([]);
+
+    // And the internal case still works, so the rule is a restriction and not a
+    // blanket removal of the feature.
+    const http = await agent();
+    await http.get('/login?next=%2Fprofile');
+    const res = await postForm(http, '/login', { email: 'redir-probe@test.example', password: 'Passw0rdLong1' }, '/login');
+    expect(res.headers.location).toBe('/profile');
+  });
+
   controlCase('C-ASSIGN-1', 'request data is never Object.assign-ed onto a model or session', () => {
     const pattern = /Object\.assign\s*\(\s*(ctx\.session|session|ctx\.user|user|ctx\.req\.fields|ctx\.req\.query)/g;
     const offenders = [];

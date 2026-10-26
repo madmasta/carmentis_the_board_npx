@@ -37,6 +37,10 @@ export async function loginForm(ctx) {
     redirect(ctx.res, '/');
     throw new Halt();
   }
+  // A link may carry where the visitor meant to go; the value is stored like the
+  // one requireLogin stores and is filtered when it is consumed (C-REDIR-1).
+  const next = typeof ctx.req.query?.next === 'string' ? ctx.req.query.next : null;
+  if (next !== null && next !== '') ctx.session.data.intended_path = next;
   // Coming back to the form abandons a half-finished challenge.
   abandonMfaChallenge(ctx);
   view(ctx, 'login', { title: 'Log in', email: '' });
