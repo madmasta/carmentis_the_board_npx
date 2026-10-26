@@ -56,7 +56,7 @@ describe('xml reader (C-XML-1)', () => {
     expect(parse(ok).children[0].tag).toBe('a');
   });
 
-  it('rejects a DOCTYPE that declares an external resource', () => {
+  it('c-xml-1 rejects a DOCTYPE that declares an external resource', () => {
     const external = `<?xml version="1.0"?>
 <!DOCTYPE board SYSTEM "http://evil.example/x.dtd">
 <board/>`;
