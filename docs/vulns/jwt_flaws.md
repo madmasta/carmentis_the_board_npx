@@ -26,38 +26,43 @@ an attacker can mint a credential for any account.
 
 ## Sink
 
-`src/security/jwt.js` — `verify(token)`. On `main` it calls
+`src/security/jwt.js` — `decode(token, purpose)`. On `main` it calls
 `jwt.verify(token, secret, { algorithms: ['HS256'] })` and rejects anything else.
 The branch replaces it with:
 
 ```js
-const decoded = jwt.decode(token, { complete: true });   // no key, no algorithms
-if (!decoded || !decoded.payload) throw new TokenError('bad token');
+const decoded = jwt.decode(String(token ?? ''), { complete: true });   // no key, no algorithms
+if (decoded === null || decoded.payload === undefined) return { ok: false, message: INVALID_TOKEN };
+
 const { payload } = decoded;
-if (payload.exp && payload.exp < nowSeconds()) throw new TokenError('expired');
-if (jtiStore.isUsed(payload.jti)) throw new TokenError('replayed');
-jtiStore.markUsed(payload.jti);
-return payload;
+if (payload.iss !== JWT_ISSUER) return { ok: false, message: INVALID_TOKEN };
+if (payload.purpose !== purpose) return { ok: false, message: INVALID_TOKEN };
+if (typeof payload.jti !== 'string' || payload.jti === '') return { ok: false, message: INVALID_TOKEN };
+if (typeof payload.exp === 'number' && payload.exp <= Math.floor(Date.now() / 1000)) {
+  return { ok: false, message: INVALID_TOKEN };
+}
+return { ok: true, payload };
 ```
 
-The signature and `algorithms` check disappear; `exp` and the `jti` single-use guard
-are deliberately **kept**, so the expired-token and replay cases still behave on the
-branch and the finding is isolated to verification. (`jwt.decode` takes only
-`complete`; there is no `json` option, and inventing one would make the diff not
-run.)
+The signature and `algorithms` check disappear; the issuer, purpose, expiry and
+jti-shape checks are deliberately **kept**, and the single-use claim is spent later by
+`verifyActive`/`consumeToken` (unchanged), so the expired-token and replay behaviour is
+identical on the branch and the finding is isolated to verification. Note that
+`jwt.decode` takes only `complete`; there is no `json` option, and inventing one makes
+the diff not run.
 
 ## Baseline control removed
 
 | Control | Control text (summary) | How the diff removes it |
 |---|---|---|
-| `C-JWT-1` (signature/algorithm clause) | `algorithms` pinned, no `none`, `exp` enforced, `jti` single-use | the signature and algorithm check are replaced by an unverified decode; the `exp` and `jti` clauses stay enforced, so only their cases are skipped |
+| `C-JWT-1` (signature/algorithm clause only) | `algorithms` pinned, no `none`, `exp` enforced, `jti` single-use | the signature and algorithm check are replaced by an unverified decode; the expiry and single-use clauses stay enforced and keep running |
 
 ## Minimal diff
 
 Files touched:
 
-- `src/security/jwt.js` — the `verify()` body above; keep `sign()` and the `jti`
-  store untouched.
+- `src/security/jwt.js` — the `decode()` body above; `signingSecret()`, `issue()` and the
+  `jwt_claims` single-use machinery stay untouched.
 - `test/vulns/jwt_flaws.test.mjs` — new file.
 
 ## Payload sketch
