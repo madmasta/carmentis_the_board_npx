@@ -229,6 +229,16 @@ each sheet: only a genuinely removed control may appear in the sheet's "Baseline
 removed" table, because `verify:branch` skips every case named by a declared control and
 a "kept" row there quietly weakens the baseline claim.
 
+Batch B is under way: `xss_stored` is built and `PASS`. It exposed two harness gaps,
+both fixed on `main`: `verify:branch` was not running the inert probe gate as its own
+step, as `docs/04` §8 requires (it now reads the branch list from that section and expects
+failure on exactly those branches), and a PHP-ported case name could not carry a control
+slug, so the escape-first markup cases were unexcludable — the rule now is ported name as
+prefix, slug after an em dash, recorded in `docs/04`. `xss_stored`'s sheet was corrected
+where it over-claimed: the live exit is the `markup` filter in `templates/partials/post.njk`
+only; the `plain` teaser on `GET /board/:id` and `GET /admin/posts` stays inert on the
+branch, and the sheet says so.
+
 **Exit gate:** `node tools/verify-all-branches.mjs` prints a 35-row matrix, all
 rows `PASS`, and `git branch --list 'vuln/*' | wc -l` is 35 with each branch
 exactly one commit off `main`.
