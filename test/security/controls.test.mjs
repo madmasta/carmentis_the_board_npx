@@ -328,7 +328,11 @@ describe('Headers and commands', () => {
   });
 
   controlCase('C-CRYPTO-1', 'no Math.random, md5 or sha1 in the security-relevant sources', () => {
-    const banned = [/Math\.random\s*\(/, /createHash\s*\(\s*['"]md5['"]\s*\)/, /createHash\s*\(\s*['"]sha1['"]\s*\)/, /jsonwebtoken[^;]*algorithm[^;]*none/];
+    const banned = [/Math\.random\s*\(/, /createHash\s*\(\s*['"]md5['"]\s*\)/, /createHash\s*\(\s*['"]sha1['"]\s*\)/, /jsonwebtoken[^;]*algorithm[^;]*none/,
+      // A fallback constant for a signing key or a one-time credential is the other
+      // half of the rule: it makes every token that key signs forgeable, and it does
+      // not depend on the environment being configured wrong.
+      /(?:SECRET|FALLBACK)\w*\s*=\s*['"][^'"/]{12,}['"]/];
     const scanned = ['src/security', 'src/session', 'src/auth', 'src/hooks', 'src/repositories', 'src/http', 'src/xml'];
     const offenders = [];
 
