@@ -31,10 +31,12 @@ familiar.
 
 Two configuration points, not a handler:
 
-- `src/security/headers-policy.js` — the pinned CSP becomes
-  `default-src 'self' 'unsafe-inline' 'unsafe-eval'; img-src * data:`, with
-  `frame-ancestors`, `form-action`, `base-uri` and `object-src` gone, and
-  `X-Frame-Options` no longer emitted.
+- `src/security/headers-policy.js` — the pinned CSP constant becomes
+  `default-src 'self' 'unsafe-inline' 'unsafe-eval'; img-src * data:; style-src 'self' 'unsafe-inline'`,
+  dropping `script-src 'self'`, `frame-ancestors`, `form-action`, `base-uri` and
+  `object-src` with it. `X-Frame-Options: DENY` stays — the ported header block is not
+  touched (that would reach outside the declared controls), so framing is weakened rather
+  than removed, and the branch's test asserts the header is still there.
 - `templates/directory.njk` — the search-summary echo is wrapped in the template-level
   switch instead of relying on the environment default:
 
@@ -51,7 +53,7 @@ post.
 
 | Control | Control text (summary) | How the diff removes it |
 |---|---|---|
-| `C-XSS-3` | Pinned CSP: `script-src 'self'`, `frame-ancestors 'none'`, `object-src 'none'`, `base-uri 'none'`, `form-action 'self'`; `X-Frame-Options: DENY` | the policy constant is replaced with the relaxed one and the framing header is dropped |
+| `C-XSS-3` | Pinned CSP: `script-src 'self'`, `frame-ancestors 'none'`, `object-src 'none'`, `base-uri 'none'`, `form-action 'self'` | the policy constant is replaced with the relaxed one; the framing directive disappears with it, while `X-Frame-Options` (a C-HDR-1 header, not declared away) stays |
 | `C-XSS-2` | Output encoding on both exits: autoescape on with `|safe` fenced to the renderer, and the app's own script using inert sinks | the environment default is overridden for a request-derived echo by `{% autoescape false %}` in the template |
 
 The register has a probe for each half: the CSP case compares three response shapes
@@ -93,12 +95,13 @@ an inline handler, likewise permitted by the relaxed policy.
 2. Assert the response contains `<script>document.title='config-xss'</script>` verbatim,
    and not `&lt;script&gt;` — the echo is not encoded.
 3. Assert `Content-Security-Policy` contains `unsafe-inline` and `unsafe-eval`, and
-   **does not** contain `frame-ancestors`, `object-src`, `base-uri` or `form-action`, and
-   that `X-Frame-Options` is absent — the second layer is gone, which is the configuration
-   half of the finding and the part that separates this branch from `vuln/xss_reflected`.
+   **does not** contain `frame-ancestors`, `object-src`, `base-uri` or `form-action` — the
+   second layer is gone, which is the configuration half of the finding and the part that
+   separates this branch from `vuln/xss_reflected`. Assert `X-Frame-Options: DENY` is still
+   emitted, which bounds the change to the declared controls.
 4. Assert the unrelated security headers are still emitted (`nosniff`, `Referrer-Policy`,
-   COOP, `X-Content-Type-Options`), so the diff is scoped to the XSS-relevant policy
-   rather than a general header regression.
+   COOP, `X-Content-Type-Options`, and `X-Frame-Options`), so the diff is scoped to the
+   XSS-relevant policy rather than a general header regression.
 5. Assert the defence that was *not* reconfigured still holds: a stored post body is
    still escaped by `markup.js` (`<strong>` renders, `<img …onerror>` does not), and the
    profile page still escapes the username — so encoding is off in one configured place,
@@ -132,7 +135,8 @@ production files.
 
 Capture **both** artefacts: the `q` payload with the live `<script>` element in the
 directory response, and the relaxed `Content-Security-Policy` header (plus the missing
-`X-Frame-Options`). Expected labels: `CWE-693 / Protection Mechanism Failure` together
+`frame-ancestors`/`object-src`/`base-uri`/`form-action` missing from it). Expected labels:
+`CWE-693 / Protection Mechanism Failure` together
 with `CWE-79 / XSS`.
 
 False-negative watch-out: reporting the header relaxation and the reflection as one
