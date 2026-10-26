@@ -25,23 +25,38 @@ additional response headers (and a second response body) into the stream.
 
 ## Sink
 
-`src/http/headers.js` — `searchEcho(res, term)`. On `main` the value is passed
-through `assertSafeHeaderValue()` (rejects CR, LF, and any control character) and
-then `res.setHeader`. Node itself also refuses CRLF in `setHeader`, so an
-interpolation there would only crash; the branch instead takes over the head
-writing and puts attacker bytes on the wire:
+`src/http/headers.js` — `searchEcho(req, res, term)`, called by both directory
+handlers (`GET /directory` and `POST /directory/search`). On `main` the value goes
+through the app's single header helper — `setHeader()` → `assertSafeHeader()`, which
+rejects CR, LF and any control character — and Node itself also refuses CRLF in
+`setHeader`, so an interpolation there would only crash; the header is simply not
+sent when the term cannot be a header value. Node offers no supported way to put a
+break in a head, so the branch takes over the head writing and puts attacker bytes on
+the wire — which is exactly the PHP shape:
 
 ```js
-const socket = req.socket;
-res.detachSocket(socket);
-socket.write(
-  'HTTP/1.1 200 OK\r\n' + headerLines(policyHeaders(req)) +   // same baseline set as main
-  `X-Search-Term: ${term}\r\n\r\n` + htmlBody
-);
+// searchEcho(req, res, term), diagnostic branch
+const chunks = [];
+const socket = res.socket;
+res.write = (piece) => { chunks.push(Buffer.from(piece)); return true; };
+res.end = (piece) => {
+  if (piece !== undefined && piece !== null) chunks.push(Buffer.from(piece));
+  const body = Buffer.concat(chunks).toString('latin1');
+  const fields = Object.entries(res.getHeaders()).map(/* name: value */);
+  res.detachSocket(socket);
+  socket.end(
+    `HTTP/1.1 ${res.statusCode} ${res.statusMessage || 'OK'}\r\n` +
+      `${fields.join('\r\n')}\r\nX-Search-Term: ${value}\r\n` +
+      `Content-Length: ${Buffer.byteLength(body, 'latin1')}\r\n\r\n${body}`,
+  );
+  return res;
+};
 ```
 
-The head is now assembled by string concatenation, which is exactly the PHP
-shape, and it splits the response.
+The head is assembled by string concatenation — the PHP shape — and a `q` carrying
+`%0D%0A` splits it. The baseline header set is still emitted (it is read back out of
+`res.getHeaders()`), which is what makes the finding a splitting defect rather than a
+header-stripping one.
 
 ## Baseline control removed
 
@@ -53,10 +68,16 @@ shape, and it splits the response.
 
 Files touched:
 
-- `src/http/headers.js` — add the raw socket write in `searchEcho` when the
-  request carries the directory's `X-Diagnostic: 1` header (the directory page
-  sends it), and skip `assertSafeHeaderValue` in that path.
-- `src/http/directory.controller.js` — pass the header value through.
+- `src/http/headers.js` — the diagnostic path above in `searchEcho`, taken when the
+  request carries `X-Diagnostic: 1`; that path never reaches `assertSafeHeader`.
+- `src/http/hooks.controller.js` — the two call sites pass the request in
+  (`searchEcho(ctx.req, ctx.res, q)`), because the mode is chosen by a request header.
+
+`X-Search-Term` itself exists on `main`: the surface is `main`'s, and the branch only
+changes how that one header is written. The C-HDR-2 proof on `main`
+(`controls.test.mjs#c-hdr-2 the search-term echo header cannot carry a break`)
+exercises both forms of the request, diagnostic included, and is the case the branch
+contract expects to go red.
 - `test/vulns/header_injection.test.mjs` — new file.
 
 ## Payload sketch
