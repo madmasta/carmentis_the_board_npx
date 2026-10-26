@@ -132,6 +132,10 @@ export async function boardExport(ctx, params) {
 /** POST /board/:id/import — the envelope this app exported. */
 export async function boardImport(ctx, params) {
   const board = await accessibleBoard(ctx, params);
+  // Bulk write into someone else's board: the role is checked per request, not
+  // inherited from the board being readable (C-ACL-2). The visibility check runs
+  // first so an invisible board stays invisible (404, not 403).
+  requireAdmin(ctx);
 
   const uploaded = ctx.req.files.xml;
   const inline = post(ctx, 'xml');

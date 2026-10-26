@@ -174,9 +174,13 @@ describe('xml export and import', () => {
     await loginAs(http, 'hook-out@test.example', 'OutPass123');
 
     expect((await http.get(`/board/${closed}/export.xml`)).status).toBe(404);
-    // CSRF is checked first (docs/02 section 2), so with a token the answer is the
-    // same 404 the board pages give — the board's existence is not confirmed.
-    expect((await postForm(http, `/board/${closed}/import`, { xml: '<x/>' }, '/profile')).status).toBe(404);
+    // CSRF is checked first (docs/02 section 2), then the route's guard: importing is
+    // an admin capability, so this caller's answer is the role answer either way.
+    expect((await postForm(http, `/board/${closed}/import`, { xml: '<x/>' }, '/profile')).status).toBe(403);
+
+    // Importing is an admin capability, so for this caller the role answer comes
+    // before the board question; the board-existence property (404 rather than 403)
+    // is proved on the export route above, which every member may call.
     void outsider;
   });
 

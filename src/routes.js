@@ -94,7 +94,7 @@ export const routes = buildTable([
   { method: 'GET', path: '/attachment', guard: 'login', csrf: false, handler: hooks.attachment },
   { method: 'POST', path: '/preview', guard: 'login', handler: hooks.previewLink },
   { method: 'GET', path: '/board/:id/export.xml', guard: 'login', csrf: false, handler: hooks.boardExport },
-  { method: 'POST', path: '/board/:id/import', guard: 'login', handler: hooks.boardImport },
+  { method: 'POST', path: '/board/:id/import', guard: 'admin', handler: hooks.boardImport }, // bulk write: admin capability
   { method: 'GET', path: '/directory', guard: 'login', csrf: false, handler: hooks.directory },
   { method: 'POST', path: '/directory/search', guard: 'login', handler: hooks.directorySearch },
   { method: 'POST', path: '/directory/match', guard: 'login', handler: hooks.directoryMatch },

@@ -9,9 +9,9 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { truncateAll } from '../helpers/db.mjs';
+import { count, truncateAll } from '../helpers/db.mjs';
 import { declaredControls, isDeclared, sheetPath, slugOf, vulnSlug } from '../helpers/declared.mjs';
-import { agent, csrfToken, loginAs } from '../helpers/http.mjs';
+import { agent, csrfToken, loginAs, postForm } from '../helpers/http.mjs';
 import { makeBoard, makeThread, makeUser } from '../helpers/users.mjs';
 import { root } from '../../src/db/admin.js';
 import { routes } from '../../src/routes.js';
@@ -265,6 +265,21 @@ describe('Authorization and bodies', () => {
       return !body.includes('requireAdmin(');
     });
     expect(unchecked, unchecked.join(', ')).toEqual([]);
+  });
+
+  controlCase('C-ACL-2', 'the board import is an admin capability, checked per request', async () => {
+    // The route lives under /board/:id, so path-based reasoning does not protect it:
+    // a member who can read the board still may not write a hundred threads into it.
+    const member = await makeUser('acl-import-member', 'acl-import-member@test.example', 'Passw0rdLong1');
+    const boardId = Number((await makeBoard('Import ACL', true, Number(member.id))).id);
+    const envelope = `<?xml version="1.0"?>
+<board-export schema="theboard-board-export/1" board_id="${boardId}"><thread title="bulk"><post>body</post></thread></board-export>`;
+
+    const http = await agent();
+    await loginAs(http, 'acl-import-member@test.example', 'Passw0rdLong1');
+    const res = await postForm(http, `/board/${boardId}/import`, { xml: envelope }, '/profile');
+    expect(res.status).toBe(403);
+    expect(await count('SELECT COUNT(*) FROM posts WHERE title = ?', ['bulk'])).toBe(0);
   });
 
   controlCase('C-ASSIGN-1', 'request data is never Object.assign-ed onto a model or session', () => {
