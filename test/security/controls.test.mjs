@@ -336,6 +336,27 @@ describe('Authorization and bodies', () => {
   });
 });
 
+describe('Response headers built from request data', () => {
+  controlCase('C-HDR-2', 'the search-term echo header cannot carry a break', async () => {
+    await makeUser('hdr-echo', 'hdr-echo@test.example', 'Passw0rdLong1');
+    const http = await agent();
+    await loginAs(http, 'hdr-echo@test.example', 'Passw0rdLong1');
+
+    const plain = await http.get('/directory?q=search%20term');
+    expect(plain.headers['x-search-term']).toBe('search term');
+
+    // A term carrying a line break must not become a second header, and must not
+    // take the page down with it.
+    const hostile = await http.get('/directory?q=a%0D%0AX-Evil%3A%20pwned');
+    expect(hostile.status).toBe(200);
+    expect(hostile.headers['x-evil']).toBeUndefined();
+    const echoed = String(hostile.headers['x-search-term'] ?? '');
+    expect(echoed).not.toContain(String.fromCharCode(13));
+    expect(echoed).not.toContain(String.fromCharCode(10));
+    expect(hostile.text).toContain('<!DOCTYPE html>');
+  });
+});
+
 describe('Guard consistency across routes', () => {
   controlCase('C-ACL-4', 'no route reaches a login-only capability as anon', async () => {
     // The route table is the product's access model. One capability — one handler —

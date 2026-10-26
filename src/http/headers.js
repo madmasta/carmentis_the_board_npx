@@ -38,6 +38,21 @@ export function setHeader(res, name, value) {
   res.setHeader(name, value);
 }
 
+/**
+ * The directory page shows the active search term in a client-side chip, and the
+ * chip reads it from this header rather than re-parsing the URL, so the header goes
+ * through the same C-HDR-2 gate as every other write. A term that cannot be a
+ * header value simply does not get the header.
+ */
+export function searchEcho(res, term) {
+  try {
+    setHeader(res, 'X-Search-Term', String(term ?? ''));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Apply the baseline set. Called before routing so even 404/403/500 carry it. */
 export function applySecurityHeaders(res, { https = false } = {}) {
   for (const [name, value] of STATIC_HEADERS) setHeader(res, name, value);

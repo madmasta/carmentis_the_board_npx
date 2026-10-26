@@ -236,7 +236,9 @@ Header names and values pass a CRLF/control-character check and are written only
 through `res.setHeader`/`res.writeHead`; values derived from request data
 (`Location`, `Refresh`, `Set-Cookie`) are validated first.
 *Location:* `src/http/response.js`, `src/http/headers.js`.
-*Proof:* `test/unit/headers.test.mjs` (CRLF in a redirect target is rejected).
+*Proof:* `test/unit/headers.test.mjs` (CRLF in a redirect target is rejected) and
+`test/security/controls.test.mjs#c-hdr-2 the search-term echo header cannot carry a
+break` (the directory's `X-Search-Term` echo, request-derived by construction).
 
 **C-HDR-3 — CORS stays closed.**
 No `Access-Control-Allow-*` header is ever emitted; no origin reflection; no

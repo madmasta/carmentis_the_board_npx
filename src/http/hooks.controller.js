@@ -21,6 +21,7 @@ import {
   issue as issueToken,
   resetLink,
 } from '../security/jwt.js';
+import { searchEcho } from './headers.js';
 import { attachment as sendAttachment, redirect, text } from './response.js';
 import * as validator from '../security/validator.js';
 import { Mailer } from '../mail/mailer.js';
@@ -206,6 +207,7 @@ export async function directory(ctx) {
     error = problem.message;
   }
 
+  searchEcho(ctx.res, q);
   view(ctx, 'directory', { title: 'Staff directory', people: rows, q, role, mode, filter_error: error });
 }
 
@@ -245,6 +247,7 @@ export async function directorySearch(ctx) {
     error = problem.message;
   }
 
+  searchEcho(ctx.res, q);
   view(ctx, 'directory', {
     title: 'Staff directory',
     people: result?.users ?? [],
