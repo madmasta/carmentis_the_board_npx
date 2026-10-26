@@ -100,7 +100,7 @@ describe('signed tokens (C-JWT-1)', () => {
     expect((await consume(forged, 'password_reset')).ok).toBe(false);
   });
 
-  it('c-jwt-1 refuses an expired token', async () => {
+  it('the expiry clause still bites: an expired token is refused', async () => {
     // Minted already-expired: the same shape the library produces for a token
     // whose 15 minutes have run out.
     const expired = jwt.sign(
@@ -114,7 +114,7 @@ describe('signed tokens (C-JWT-1)', () => {
     expect(issue({ sub: '7', purpose: 'password_reset', maxAgeSeconds: 'junk' }).maxAgeSeconds).toBe(900);
   });
 
-  it('c-jwt-1 the lifetime can be shortened but never lengthened', () => {
+  it('the expiry clause cannot be lengthened past the cap', () => {
     expect(issue({ sub: '7', purpose: 'remember_me', maxAgeSeconds: 60 }).maxAgeSeconds).toBe(60);
     expect(issue({ sub: '7', purpose: 'remember_me', maxAgeSeconds: 10 * 24 * 3600 }).maxAgeSeconds).toBe(900);
 
@@ -122,7 +122,7 @@ describe('signed tokens (C-JWT-1)', () => {
     expect(jwt.decode(token).exp - jwt.decode(token).iat).toBe(900);
   });
 
-  it('c-jwt-1 a spent token is refused, however valid its signature is', async () => {
+  it('the single-use clause still bites: a spent token is refused', async () => {
     const { token, jti } = issue({ sub: '7', purpose: 'password_reset' });
 
     expect(await consume(token, 'password_reset')).toMatchObject({ ok: true });
@@ -132,7 +132,7 @@ describe('signed tokens (C-JWT-1)', () => {
     expect(await count('SELECT COUNT(*) FROM jwt_claims')).toBe(1);
   });
 
-  it('c-jwt-1 two simultaneous replays: exactly one wins', async () => {
+  it('the single-use claim is atomic: two simultaneous replays, one winner', async () => {
     const { token } = issue({ sub: '7', purpose: 'password_reset' });
     const results = await Promise.all([consume(token, 'password_reset'), consume(token, 'password_reset')]);
 

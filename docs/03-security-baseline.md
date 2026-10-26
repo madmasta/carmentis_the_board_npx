@@ -341,7 +341,11 @@ no `sha1` for anything secret, no hardcoded key.
 secret ≥ 32 bytes from `JWT_SECRET`, `exp` ≤ 15 min, `jti` recorded and single-use,
 signature secret never echoed to a client.
 *Location:* `src/security/jwt.js`.
-*Proof:* `test/unit/hook-jwt.test.mjs`.
+*Proof:* `test/unit/hook-jwt.test.mjs` — the three signature/algorithm cases carry the
+`c-jwt-1` slug (`refuses an alg:none token`, `refuses an algorithm substitution in the
+header`, `refuses a token signed with a different key`); the expiry and single-use cases
+are named for their own clause and keep running on a branch that declares the
+signature clause away, so the scope of that downgrade is visible.
 
 ## Data exposure, logging, dependencies
 
