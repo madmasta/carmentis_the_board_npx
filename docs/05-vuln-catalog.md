@@ -54,7 +54,7 @@ new fixture/test harness.
 | 32 | `vuln/xss_dom` | CWE-79 | DOM-based XSS | `GET /directory?q=` (client-side) | `C-XSS-2` | `public/assets/app.js` | S | [sheet](vulns/xss_dom.md) |
 | 33 | `vuln/xss_stored` | CWE-79 | Stored XSS | `POST /board/:id/thread` (`body`) | `C-XSS-1` | `src/security/markup.js#render` | M | [sheet](vulns/xss_stored.md) |
 | 34 | `vuln/xss_reflected` | CWE-79 | Reflected XSS | `POST /preview` (`url`) | `C-XSS-2` | `templates/preview.njk` | S | [sheet](vulns/xss_reflected.md) |
-| 35 | `vuln/xxe` | CWE-611 | XML external entity | `POST /board/:id/import` (`xml`) | `C-XML-1` | `src/xml/reader.js#resolveEntity` | M | [sheet](vulns/xxe.md) |
+| 35 | `vuln/xxe` | CWE-611 | XML external entity | `POST /board/:id/import` (`xml`) | `C-XML-1` | `src/xml/reader.js#parseInternalSubset` | M | [sheet](vulns/xxe.md) |
 
 ## Family grouping (for scanner coverage review)
 
