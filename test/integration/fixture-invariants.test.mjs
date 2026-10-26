@@ -65,7 +65,7 @@ describe('fixture invariants (docs/02 section 6)', () => {
     }
   });
 
-  it('3. the sanitizer probe stores raw markup and renders as inert text', async () => {
+  it('c-xss-1 3. the sanitizer probe stores raw markup and renders as inert text', async () => {
     const probe = await row('SELECT body FROM posts WHERE title = ?', ['Rendering probe (should be inert)']);
     expect(probe).not.toBeNull();
 
