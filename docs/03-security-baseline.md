@@ -82,11 +82,16 @@ tags are converted; unknown tags stay inert text; work is bounded to 25 passes.
 *Location:* `src/security/markup.js`.
 *Proof:* the 30 ported cases in `test/unit/markup.test.mjs`.
 
-**C-XSS-2 — Template autoescape, `|safe` is fenced.**
-Nunjucks runs with `autoescape: true`. `|safe` may only wrap a call to
-`markup.render`. A source scan fails the build if `|safe` appears anywhere else.
-*Location:* `src/views.js`, all templates.
-*Proof:* `test/security/controls.test.mjs#c-xss-2`.
+**C-XSS-2 — Output encoding on both exits: templates and the app's own script.**
+Nunjucks runs with `autoescape: true`, and `|safe` may only wrap a call to
+`markup.render`; a source scan fails the build if `|safe` appears anywhere else.
+The same rule applies client-side: the one script CSP allows
+(`public/assets/app.js`) writes request-derived values through inert sinks only
+(`textContent`, `setAttribute`) — never `innerHTML`, `outerHTML`,
+`insertAdjacentHTML` or `document.write`.
+*Location:* `src/views.js`, all templates, `public/assets/app.js`.
+*Proof:* `test/security/controls.test.mjs#c-xss-2` (two cases: the `|safe` scan and
+the client-sink scan) and `test/security/baseline-inert.test.mjs`.
 
 **C-XSS-3 — Content-Security-Policy.**
 Sent on every response:

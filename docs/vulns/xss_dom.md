@@ -20,7 +20,7 @@ invisible to response-scanning.
 ## Affected surface
 
 - Route: `GET /directory?q=` — the page itself is clean; the sink is
-  `/assets/app.js`
+  `/assets/app.js`, filling the empty `<span data-q-chip>` the directory renders
 - Parameter: the `q` query-string value, read by client code
 - Prerequisites: `regular` profile
 - Reachability: the directory search form, and any link to `/directory?q=…`
@@ -61,8 +61,10 @@ point of the class.
 GET /directory?q=%3Cimg%20src%3Dx%20onerror%3Ddocument.title%3D%27dom-xss%27%3E
 ```
 
-The server's response is identical to the response for `q=hello` apart from the
-escaped attribute value; the injection happens when `app.js` runs.
+The server's response is the ordinary directory page: the payload appears only
+escaped, in the search field's `value` attribute, and the `<span data-q-chip>` it is meant
+to fill is empty in the HTML. The injection happens when `app.js` reads `location.search`
+and writes the term into that span.
 
 ## Differential oracle
 
@@ -88,15 +90,20 @@ HTML sink to report.
 
 ## Must-not-break invariants
 
-- Inert probe gate (docs/04 §8): broken on this branch.
-- The server response for the directory page stays correctly escaped — the
-  branch's own test asserts it (step 1), and `test/security/baseline-inert.test.mjs`
-  must still pass on this branch.
+- Inert probe gate (docs/04 §8): broken on this branch — but by one case, not the
+  stored-probe case. `the one external script writes only through inert sinks` fails
+  because `chip.textContent =` becomes `chip.innerHTML =`. The stored probe, the search
+  echo, the CSP case and the template-syntax case all stay green: the server never emits
+  the payload as markup, which is the point of the class.
+- The server response for the directory page stays correctly escaped, and the branch's
+  own test asserts it (step 1).
 - CSP remains `script-src 'self'` with no `unsafe-inline`, so the difference
   between this branch and `vuln/xss_config` is visible in the headers.
 - The rest of `app.js` (vote button debounce, confirm dialogs) is unchanged.
-- Only `C-XSS-2`'s client-sink clause is skipped; the template autoescape clause is
-  re-asserted inside step 1.
+- Declared for the run: `C-XSS-2` only. That takes out both register cases — the
+  `|safe` source scan and the client-sink scan — and the audit case then requires one of
+  them to fail, which the client-sink probe does. The `|safe` scan is separately re-proved
+  inside the branch's own test (step 1): the directory response escapes the payload.
 
 ## Fidelity to the PHP branch
 

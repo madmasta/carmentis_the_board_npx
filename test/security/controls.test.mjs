@@ -169,6 +169,16 @@ describe('Output encoding and templates', () => {
     expect(views).toMatch(/autoescape:\s*true/);
   });
 
+  controlCase('C-XSS-2', 'the shipped client script writes request values through inert sinks', () => {
+    const script = readFileSync(join(root(), 'public', 'assets', 'app.js'), 'utf8');
+    expect(script).not.toMatch(/\.innerHTML\s*=/);
+    expect(script).not.toMatch(/\.outerHTML\s*=/);
+    expect(script).not.toMatch(/insertAdjacentHTML\s*\(/);
+    expect(script).not.toMatch(/document\.write(i)?\s*\(/);
+    // The chip exists, so the inert sink is the live code path rather than dead code.
+    expect(script).toMatch(/chip\.textContent\s*=/);
+  });
+
   controlCase('C-XSS-3', 'the pinned CSP is on every response shape', async () => {
     const owner = await makeUser('csp-owner', 'csp-owner@test.example', 'Passw0rdLong1', 'admin');
     const boardId = Number((await makeBoard('CSP Board', true, Number(owner.id))).id);

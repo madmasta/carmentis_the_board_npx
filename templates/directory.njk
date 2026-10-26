@@ -15,6 +15,11 @@
         </select>
         <button type="submit" class="btn btn-sm">Filter</button>
     </form>
+    {% if q %}
+        {# Deliberately empty in the response: the term is filled in by app.js from
+           location.search, which is what makes it a client-side write (C-XSS-2). #}
+        <p class="hint">Searching for: <span data-q-chip></span></p>
+    {% endif %}
     {% if filter_error %}
         <p class="flash flash-error">{{ filter_error }}</p>
     {% endif %}
