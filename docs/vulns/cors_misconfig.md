@@ -25,9 +25,13 @@ so any site the user visits can read their session-bound data.
 
 ## Sink
 
-`src/http/headers.js`. On `main` no `Access-Control-*` header is ever emitted and
-there is no `OPTIONS` handler (`C-HDR-3`). The branch adds a permissive CORS
-layer, intended to make the app "embeddable":
+`src/http/headers.js`. On `main` C-HDR-3 is a deny-list inside the app's only
+header-writing helper: `setHeader()` calls `assertSafeHeader()`, which throws
+`UnsafeHeaderValue` for any name starting with `FORBIDDEN_HEADER_PREFIX`
+(`'access-control-'`, src/security/headers-policy.js), and there is no `OPTIONS`
+handler. The branch adds a permissive CORS layer, intended to make the app
+"embeddable", that goes straight to `res.setHeader` — bypassing the helper is
+exactly what removes the control:
 
 ```js
 const origin = req.headers.origin;
@@ -51,8 +55,11 @@ and `Access-Control-Allow-Methods: GET, POST`.
 
 Files touched:
 
-- `src/http/headers.js` — the block above.
-- `src/http/router.js` — dispatch `OPTIONS` to the preflight responder.
+- `src/http/headers.js` — `applyCorsHeaders(req, res)` and `respondCorsPreflight(req, res)`
+  above, both writing through `res.setHeader` rather than the app's `setHeader`.
+- `src/http/server.js` — `applyCorsHeaders` is called in the pipeline next to
+  `applySecurityHeaders`, and an `OPTIONS` request short-circuits to
+  `respondCorsPreflight` before routing.
 - `test/vulns/cors_misconfig.test.mjs` — new file.
 
 ## Payload sketch
