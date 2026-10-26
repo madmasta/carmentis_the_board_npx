@@ -70,7 +70,7 @@ describe('c-assign-1-keys bodies become typed DTOs', () => {
   });
 });
 
-describe('host-header (C-COOKIE-1)', () => {
+describe('host-header — c-cookie-1 the request host is never believed', () => {
   it('host-header the configured host answers, with or without its port', () => {
     expect(hostIsAllowed(requestOf({ headers: { host: 'localhost:8088' } }))).toBe(true);
     expect(hostIsAllowed(requestOf({ headers: { host: 'localhost' } }))).toBe(true);

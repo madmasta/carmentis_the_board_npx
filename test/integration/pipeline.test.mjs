@@ -67,7 +67,7 @@ describe('pipeline', () => {
     expect(res.text).toContain('probe-fault-visible');
   });
 
-  it('refuses a host that was not configured', async () => {
+  it('c-cookie-1 refuses a host that was not configured', async () => {
     const res = await request(app).get('/health').set('Host', 'evil.example');
     expect(res.status).toBe(400);
     expect(res.text).toContain('Unknown host.');

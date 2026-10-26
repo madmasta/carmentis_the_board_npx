@@ -248,8 +248,8 @@ No `Access-Control-Allow-*` header is ever emitted; no origin reflection; no
 The session cookie name and flags come from configuration, never from a request
 supplied host; `Host`/`X-Forwarded-Host` are never used to build absolute URLs,
 cookies or links; email links use `APP_URL`.
-*Location:* `src/http/request.js#hostIsAllowed`, `src/security/jwt.js#resetUrl`.
-*Proof:* `test/unit/request.test.mjs#host-header`.
+*Location:* `src/http/request.js#hostIsAllowed` (enforced in `src/http/server.js`), `src/security/jwt.js#resetLink`.
+*Proof:* `test/unit/request.test.mjs` host-header cases (`c-cookie-1`) and `test/integration/pipeline.test.mjs#c-cookie-1`.
 
 **C-REDIR-1 — Internal-only post-login redirect.**
 `intended_path` must start with `/` and not `//`; anything else becomes `/`.

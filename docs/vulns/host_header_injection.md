@@ -26,7 +26,7 @@ attacker host and the token delivered there.
 
 ## Sink
 
-`src/security/jwt.js` — `resetUrl(token)`. On `main` the absolute URL is built
+`src/security/jwt.js` — `resetLink(token)`. On `main` the absolute URL is built
 from `APP_URL` only, and the request pipeline rejects a `Host` that is not in the
 configured allowlist (`HOST_ALLOWLIST`, default: the `APP_URL` host and
 `localhost`). The branch builds the URL from the request host and accepts
@@ -47,8 +47,11 @@ return `http://${base}/reset-password?token=${token}`;
 
 Files touched:
 
-- `src/security/jwt.js` — `resetUrl` takes the request and uses the header base.
-- `src/http/request.js` — delete the `hostIsAllowed()` check.
+- `src/security/jwt.js` — `resetLink` takes the request and uses the header base.
+- `src/http/hooks.controller.js` — the call site passes the request through.
+- `src/http/server.js` — the `hostIsAllowed()` gate before routing is removed (the
+  function itself stays in `src/http/request.js`, un-called, which is why the
+  `c-cookie-1` unit cases are declared rather than left to pass).
 - `test/vulns/host_header_injection.test.mjs` — new file.
 
 ## Payload sketch
