@@ -122,9 +122,14 @@ On `main` step 2 must show `&lt;script&gt;…` and step 3 must show the pinned p
 
 ## Must-not-break invariants
 
-- Inert probe gate (docs/04 §8): stays green on this branch. The stored probe is rendered
-  through the `markup` filter, and `markup.js` is untouched, so it stays inert text; the
-  external-script case is untouched too (that is `vuln/xss_dom`).
+- Inert probe gate (docs/04 §8): broken on this branch — by one case. `the search echo is
+  inert on the way back out` posts to `GET /directory?q=` and asserts the term comes back
+  escaped; the fenced `|safe` echo makes that false, so the gate fails. The stored-probe
+  case, the external-script case, the CSP case and the template-syntax case stay green:
+  `markup.js` is untouched, `app.js` is untouched, and the payload never becomes markup in
+  a stored post.
+- Inert probe gate, spelled out the other way: the branch's own test re-proves the stored
+  path stays inert (step 5), so the gate's failure is attributable to the one echo.
 - Every other template keeps relying on autoescape, and their suites stay green — enforced
   by `verify:branch`'s baseline run, which is the practical proof that the encoding change
   is a configuration switch and not a renderer defect.
@@ -161,8 +166,8 @@ query parser may otherwise mangle.
 
 - [ ] `test/vulns/xss_config.test.mjs` passes on the branch.
 - [ ] The same test fails when run from a `main` worktree.
-- [ ] `npm run verify:branch` green, with the inert probe gate reported as staying green
-  on this branch.
+- [ ] `npm run verify:branch` green, with the inert probe gate reported as broken on this
+  branch — which `verify:branch` expects, per the line above.
 - [ ] One commit off `main`; diff touches only the two listed production files plus the
   test.
 - [ ] Commit message: `vuln: xss_config — disable template autoescape and relax the CSP`.
