@@ -18,18 +18,23 @@ steal or forge mail.
 
 ## Affected surface
 
-- Route: `POST /forgot-password`
-- Parameter: `email` (form body)
-- Prerequisites: `anon` profile (the forgot-password form is public)
-- Reachability: the "Forgotten password?" link on `/login`
+- Route: `POST /profile/email` — the handler mails the account's **current** address,
+  which is where a stored header break reaches the composition step
+- Parameter: none on the request. The injected bytes live in the stored `users.email`
+  value; the request carries only the current password and the new address
+- Prerequisites: `regular` profile (the account is signed in), and a stored address
+  carrying the break
+- Reachability: the e-mail form on `/profile`; every mail-composing route
+  (reset, MFA, address-change) is a delivery path for the same stored value
 
 ## Sink
 
-`src/mail/mailer.js` — `headersFor(to, subject)`. The mailer composes
-`To: <…>` and `Subject: <…>` lines for the `smtp` driver and writes the same
-values into the `log` driver record. On `main` both `to` and `subject` pass
-`stripHeaderBreaks()` (CR, LF, and NUL removed, value length capped). The branch
-deletes that call.
+`src/mail/mailer.js` — `Mailer.send(to, subject, htmlBody)`. It composes `TO:` /
+`SUBJECT:` lines for the `log` driver (the record format tests read) and `To:` /
+`Subject:` lines for the `smtp` driver. On `main` both values are passed through
+`headerValue()` — the exported C-MAIL-1 strip, `String(value).replace(/[\r\n\0]/g, '')`
+— before composition. The branch removes those two calls and hands the values over
+as they are.
 
 ## Baseline control removed
 
@@ -41,8 +46,12 @@ deletes that call.
 
 Files touched:
 
-- `src/mail/mailer.js` — remove the `stripHeaderBreaks(to)` / `stripHeaderBreaks(subject)`
-  calls and pass the raw values into both the `log` record and the `smtp` DATA block.
+- `src/mail/mailer.js` — `const recipient = headerValue(to)` and
+  `const safeSubject = headerValue(subject)` in `Mailer.send()` become plain
+  `String(...)` conversions, so both the `log` record and the `smtp` DATA block are
+  composed from the values as stored. `headerValue()` itself stays exported (the
+  unit proofs call it directly), which is why the `c-mail-1` cases are declared
+  rather than left to pass.
 - `test/vulns/email_header_injection.test.mjs` — new file.
 
 ## Payload sketch
@@ -107,3 +116,25 @@ returns a generic "if that address exists you will get a link" message on purpos
 - [ ] `npm run verify:branch` green.
 - [ ] One commit off `main`; diff touches only the two listed files.
 - [ ] Commit message: `vuln: email_header_injection — compose mail headers from request data without CR/LF stripping`.
+
+## Correction history
+
+The first version of this sheet was written before the substrate was read, and two
+things in it were wrong.
+
+- It named `headersFor(to, subject)` and `stripHeaderBreaks()`. Neither exists. The
+  composition happens in `Mailer.send()`, and the C-MAIL-1 helper is the exported
+  `headerValue()`.
+- It put the payload in the `email` field of `POST /forgot-password`. That route mails
+  only to an address that matches an account, and `validator.email`'s pattern
+  (`EMAIL_PATTERN` in `src/security/validator.js`) rejects a value containing a line
+  break — so no submitted payload can carry one, and a scanner fuzzing that field
+  sees a normal "if that address exists you'll get a link" answer. The live source is
+  the **stored** address: `POST /profile/email` mails the account's current address,
+  so a `users.email` value holding a break is composed verbatim once the strip is
+  gone. The reset and MFA routes are secondary delivery paths for the same stored
+  value.
+
+The consequence for scoring is honest and deliberate: the branch removes the last line
+of defence, not the intake. An intake that could submit the payload would be a second
+planted defect, and no other branch declares one.
