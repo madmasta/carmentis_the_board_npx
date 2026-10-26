@@ -357,7 +357,7 @@ describe('board snapshot (GET /admin/boards/:id/snapshot.json, POST …/restore)
     expect(parsed.records.map((r) => r.type)).toEqual(['board', 'post']);
   });
 
-  it('c-assign-1 a non-admin is refused before the snapshot is read', async () => {
+  it('c-acl-2 a non-admin is refused before the snapshot is read', async () => {
     const http = await agent();
     await loginAs(http, 'hook-pleb@test.example', 'PlebPass123');
 

@@ -21,26 +21,26 @@ function urlencoded(fields) {
   return new URLSearchParams(fields).toString();
 }
 
-describe('c-assign-1 bodies become typed DTOs', () => {
-  it('c-assign-1 the dangerous key set is rejected, not silently dropped', () => {
+describe('c-assign-1-keys bodies become typed DTOs', () => {
+  it('c-assign-1-keys the dangerous key set is rejected, not silently dropped', () => {
     for (const key of ['__proto__', 'constructor', 'prototype']) {
       expect(isDangerousKey(key)).toBe(true);
     }
     expect(isDangerousKey('username')).toBe(false);
   });
 
-  it('c-assign-1 a body carrying a prototype key is a 400 before any assignment', async () => {
+  it('c-assign-1-keys a body carrying a prototype key is a 400 before any assignment', async () => {
     for (const body of ['title=hi&__proto__=1', 'title=hi&constructor=1', 'prototype=x']) {
       const req = requestOf({ body, headers: { 'content-type': 'application/x-www-form-urlencoded' } });
       await expect(parse(req)).rejects.toBeInstanceOf(RequestError);
     }
   });
 
-  it('c-assign-1 a query string carrying a prototype key is a 400 too', async () => {
+  it('c-assign-1-keys a query string carrying a prototype key is a 400 too', async () => {
     await expect(parse(requestOf({ method: 'GET', url: '/x?__proto__=1' }))).rejects.toBeInstanceOf(RequestError);
   });
 
-  it('c-assign-1 bracket notation pollutes nothing: fields are a null-prototype map', async () => {
+  it('c-assign-1-keys bracket notation pollutes nothing: fields are a null-prototype map', async () => {
     const parsed = await parse(requestOf({ body: 'title=hi&__proto__[polluted]=1&constructor[x]=1', headers: { 'content-type': 'application/x-www-form-urlencoded' } }));
 
     expect(Object.getPrototypeOf(parsed.fields)).toBeNull();

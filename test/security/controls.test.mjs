@@ -9,7 +9,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { count, truncateAll } from '../helpers/db.mjs';
+import { count, row, truncateAll } from '../helpers/db.mjs';
 import { declaredControls, isDeclared, sheetPath, slugOf, vulnSlug } from '../helpers/declared.mjs';
 import { agent, csrfToken, loginAs, postForm } from '../helpers/http.mjs';
 import { makeBoard, makeThread, makeUser } from '../helpers/users.mjs';
@@ -306,6 +306,22 @@ describe('Authorization and bodies', () => {
     await http.get('/login?next=%2Fprofile');
     const res = await postForm(http, '/login', { email: 'redir-probe@test.example', password: 'Passw0rdLong1' }, '/login');
     expect(res.headers.location).toBe('/profile');
+  });
+
+  controlCase('C-ASSIGN-1', 'the profile update binds only the fields its form exposes', async () => {
+    await makeUser('assign-probe', 'assign-probe@test.example', 'Passw0rdLong1');
+    const http = await agent();
+    await loginAs(http, 'assign-probe@test.example', 'Passw0rdLong1');
+
+    const before = await row('SELECT role, mfa_enabled FROM users WHERE email = ?', ['assign-probe@test.example']);
+    const res = await postForm(http, '/profile', { current_password: 'Passw0rdLong1', mfa_enabled: '0', role: 'admin', is_banned: '0', ban_reason: 'self-promoted' }, '/profile');
+    expect(res.status).toBe(303);
+
+    const after = await row('SELECT role, mfa_enabled, is_banned, ban_reason FROM users WHERE email = ?', ['assign-probe@test.example']);
+    expect(Number(after.mfa_enabled)).toBe(0); // the one field the form exposes did change
+    expect(after.role).toBe(before.role); // everything else was dropped
+    expect(Number(after.is_banned)).toBe(0);
+    expect(after.ban_reason).toBeNull();
   });
 
   controlCase('C-ASSIGN-1', 'request data is never Object.assign-ed onto a model or session', () => {
