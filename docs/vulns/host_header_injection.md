@@ -77,7 +77,10 @@ Expected effect: the mail record's link is
 3. Read the last mail record and assert the link starts with
    `http://pw.evil.example/reset-password?token=` and that a token follows it.
 4. Repeat with only a spoofed `Host: evil.example` and assert the link uses
-   `evil.example`, proving the plain header path too.
+   `evil.example`, proving the plain header path too. The POST's own status is `200`
+   in both cases — `forgotPassword` re-renders the form rather than redirecting, so
+   the mail record is the only observable and the test asserts it rather than a
+   status code.
 5. Assert that a real reset link requested with the default host still works end
    to end (request, extract token, reset the password of a throwaway account).
 
