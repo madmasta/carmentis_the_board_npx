@@ -104,7 +104,7 @@ const inertGate = 'test/security/baseline-inert.test.mjs';
 
 // 2. The baseline suite, minus exactly the declared controls' cases. The inert probe
 // gate is held out of this run and judged on its own terms in step 3.
-const baselineArgs = [vitest, 'run', 'test/unit', 'test/integration', 'test/security', '--exclude', inertGate];
+const baselineArgs = [vitest, 'run', 'test/unit', 'test/integration', 'test/security', '--exclude', inertGate, '--maxWorkers', '4'];
 if (pattern !== null) baselineArgs.push('--testNamePattern', pattern);
 failures += run(`baseline suite (${declared.length} declared control(s) excluded)`, node, baselineArgs);
 
@@ -116,7 +116,7 @@ const inertMustFail = inertGateExpectation();
 failures += run(
   `inert probe gate (${inertMustFail ? 'this branch must break it' : 'must stay green on this branch'})`,
   node,
-  [vitest, 'run', inertGate],
+  [vitest, 'run', inertGate, '--maxWorkers', '2'],
   { expectFail: inertMustFail },
 );
 

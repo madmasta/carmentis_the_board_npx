@@ -173,7 +173,7 @@ function differential(probeWorktree, slug) {
   mkdirSync(join(probeWorktree, 'test', 'vulns'), { recursive: true });
   copyFileSync(source, target);
   try {
-    const result = spawnSync(node, ['node_modules/vitest/vitest.mjs', 'run', `test/vulns/probe-${slug}.test.mjs`], {
+    const result = spawnSync(node, ['node_modules/vitest/vitest.mjs', 'run', `test/vulns/probe-${slug}.test.mjs`, '--maxWorkers', '2'], {
       cwd: probeWorktree,
       // A database of its own, so the differential can't be influenced by whatever the
       // branch run left behind (the test database is rebuilt either way — this is about
