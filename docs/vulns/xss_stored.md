@@ -106,16 +106,17 @@ probe test must pass.
   asserts the **document-level** presence of the element, and the CSP header
   remains asserted as still-present, which is what makes the branch a renderer
   defect rather than a policy defect.
-- `test/security/baseline-inert.test.mjs > c-xss-1 the stored probe renders as
-  escaped text, never as markup` is the same boundary stated from the other side, so
-  it carries the `c-xss-1` slug and the branch run skips it by declaration — leaving
-  it unslugged would fail `verify:branch` without adding evidence. The other four
-  cases in that file (search echo, the one external script, the CSP header, template
-  syntax as data) must stay green on this branch.
-- Declared for the run: `C-XSS-1` only. Three cases carry that slug — two in
-  `test/unit/markup.test.mjs` (`c-xss-1 testRawHtmlIsEscaped`,
-  `c-xss-1 testScriptInsideBoldIsEscaped`) and the probe case above. The remaining 33
-  markup cases stay green.
+- `test/security/baseline-inert.test.mjs` is **not** declared away and carries no
+  control slug for that reason (`docs/04` §8): `verify:branch` runs it as its own step
+  and expects this branch to break it, as one of the five XSS-family branches the spec
+  names. Its other four cases (search echo, the one external script, the CSP header,
+  template syntax as data) stay green here — only the stored-probe case may fail.
+- Declared for the run: `C-XSS-1` only. Two cases carry that slug, both in
+  `test/unit/markup.test.mjs` (`testRawHtmlIsEscaped — c-xss-1 …`,
+  `testScriptInsideBoldIsEscaped — c-xss-1 …`; the ported name stays the prefix, and
+  the slug rides after an em dash so the parity gate still sees the 1:1 name), plus the
+  fixture invariant `c-xss-1 3. the sanitizer probe stores raw markup …`.
+  The remaining 33 markup cases stay green.
 
 ## Fidelity to the PHP branch
 
@@ -140,7 +141,8 @@ stays inert even on this branch.
 - [ ] `test/vulns/xss_stored.test.mjs` passes on the branch.
 - [ ] The same test fails when run from a `main` worktree.
 - [ ] The three `c-xss-1` cases are skipped on the branch and green on `main`; the
-  other 33 markup cases and the other four baseline-inert cases are green on both.
+  other 33 markup cases are green on both; the inert probe gate fails on this branch
+  and passes on `main`, and `verify:branch` judges that as the spec requires.
 - [ ] `npm run verify:branch` green otherwise.
 - [ ] One commit off `main`; diff touches only the two listed files.
 - [ ] Commit message: `vuln: xss_stored — parse markup tags before escaping the input`.

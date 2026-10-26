@@ -162,6 +162,15 @@ control, which is why an XSS branch can fail it without declaring `C-XSS-3`.
 `verify:branch` runs it separately and expects it to fail on exactly those five
 branches and to pass on the other thirty.
 
+Case-name rule for branch exclusion: a proof case names the control it proves with a
+lowercased slug (`c-sql-1 …`), and `verify:branch` excludes cases whose name contains a
+slug the sheet declares. A case whose name is ported one-for-one from the PHP suite
+keeps that name as its **prefix** and carries the slug after an em dash
+(`testRawHtmlIsEscaped — c-xss-1 escape the whole input first`), so a branch can exclude
+it without breaking the 1:1 name mapping that `scripts/verify-parity-tests.mjs` checks.
+Files that are secondary differentials rather than control proofs — `test/security/
+baseline-inert.test.mjs` — carry no slug at all.
+
 ## 9. Determinism rules
 
 - No outbound network in tests. `hooks/preview` takes an injectable resolver and
