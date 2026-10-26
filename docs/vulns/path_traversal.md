@@ -25,11 +25,16 @@ containment check, so the application will read any file the process can see.
 
 ## Sink
 
-`src/hooks/upload.js` — `readAttachment(name)`. On `main` the name must match
-`/^[0-9a-f-]{36}\.(png|jpe?g|gif|webp)$/`, the row must exist and belong to the
-caller, and the resolved path must stay inside `UPLOAD_ROOT`
-(`resolve(root, name).startsWith(root + sep)`). The branch accepts an arbitrary
-name for "share the original file" support:
+`src/hooks/upload.js` — `resolveStored(name)`, the function every stored-file read
+passes through (`GET /attachment?file=` and `GET /avatar/:id` both call it). On
+`main` the name must match `STORED_NAME`
+(`/^[0-9a-f]{8}-…-\.[a-z]{3,4}$/`, the generated shape) and the resolved path must
+stay inside `uploadsDir()` (`resolve(dir, name).startsWith(dir + sep)`). The branch
+accepts an arbitrary name for "share the original file" support, and relaxes
+`typeOfStored(name)` — which on `main` answers `null` for any extension outside the
+image allowlist, and on the branch answers a type derived from the extension with
+`application/octet-stream` as the default, so a name like `../../schema.sql` is
+servable at all:
 
 ```js
 const target = join(UPLOAD_ROOT, req.query.file);
@@ -48,8 +53,14 @@ res.setHeader('Content-Type', extensionType(extname(target)));
 
 Files touched:
 
-- `src/hooks/upload.js` — the `readAttachment` body above; keep the ownership
-  check on `GET /avatar/:id`, which is a different route.
+- `src/hooks/upload.js` — the `resolveStored` body above (the shape check and the
+  containment check both go), plus the `typeOfStored` fallback. `isStoredName()`
+  stays exported and unchanged, which is why the `c-upload-1` cases in
+  `test/unit/hook-upload.test.mjs` and `test/integration/hooks.test.mjs` are declared
+  rather than left to pass.
+- `src/http/hooks.controller.js` — unchanged: `serveStored` still answers
+  `notFound` when `resolveStored` returns null, so a single change in the helper is
+  the whole downgrade.
 - `test/vulns/path_traversal.test.mjs` — new file.
 
 ## Payload sketch
