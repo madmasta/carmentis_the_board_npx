@@ -12,8 +12,51 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { count, insert, row, truncateAll } from '../helpers/db.mjs';
 import { declaredControls, isDeclared, sheetPath, slugOf, vulnSlug } from '../helpers/declared.mjs';
 import { agent, csrfToken, loginAs, postForm } from '../helpers/http.mjs';
-import { clearKeys, setKeys } from '../helpers/env.mjs';
+import { clearKeys, restore, setKeys } from '../helpers/env.mjs';
 import { setTestFault } from '../../src/lib/faults.js';
+import { load as loadEnvFile, loadedPath } from '../../src/config/env.js';
+import { mkdirSync, writeFileSync } from 'node:fs';
+
+const SHIPPED_KEYS = ['APP_DEBUG', 'LOGIN_THROTTLE_DISABLED', 'HOST'];
+
+/**
+ * Run against the configuration the project ships: the values in `.env.example`
+ * applied over this worktree's `.env` (which holds the suite's database
+ * credentials and stays), with the real environment cleared for those keys.
+ * That is what `npm start` does in a fresh checkout. Returns the shipped values.
+ */
+function useShippedConfig() {
+  const example = readFileSync(join(root(), '.env.example'), 'utf8');
+  const base = readFileSync(join(root(), '.env'), 'utf8');
+
+  const shipped = {};
+  for (const key of SHIPPED_KEYS) {
+    const found = example.match(new RegExp('^' + key + '=(.*)$', 'm'));
+    if (found) shipped[key] = found[1];
+  }
+
+  const merged = base
+    .split(/\r?\n/)
+    .map((line) => {
+      const key = line.split('=')[0];
+      return Object.hasOwn(shipped, key) ? `${key}=${shipped[key]}` : line;
+    })
+    .join('\n');
+
+  const dir = join(root(), 'var', 'tmp');
+  mkdirSync(dir, { recursive: true });
+  const file = join(dir, 'shipped-config.env');
+  writeFileSync(file, merged);
+
+  const previous = loadedPath();
+  loadEnvFile(file);
+  clearKeys(SHIPPED_KEYS);
+
+  return function restoreShipped() {
+    restore();
+    if (previous) loadEnvFile(previous);
+  };
+}
 import { makeBoard, makeThread, makeUser } from '../helpers/users.mjs';
 import { root } from '../../src/db/admin.js';
 import { routes } from '../../src/routes.js';
@@ -352,9 +395,9 @@ describe('What the shipped configuration does by default', () => {
   });
 
   controlCase('C-INFO-1', 'the shipped default renders no trace for a 500', async () => {
-    // Nothing pinned: this case measures what config/defaults.js decides, which is
-    // what a bare `npm start` runs with.
-    const restore = clearKeys(['APP_DEBUG']);
+    // Nothing pinned: this case measures the configuration the project ships, which
+    // is what a bare `npm start` runs with.
+    const restoreShipped = useShippedConfig();
     setTestFault(() => new Error('shipped-default fault'));
     try {
       const res = await (await agent()).get('/');
@@ -364,13 +407,13 @@ describe('What the shipped configuration does by default', () => {
       expect(res.text).not.toContain('at ');
     } finally {
       setTestFault(null);
-      restore();
+      restoreShipped();
     }
   });
 
   controlCase('C-AUTH-3', 'the shipped defaults leave login throttling on', async () => {
-    const victim = await makeUser('throttle-default', 'throttle-default@test.example', 'Passw0rdLong1');
-    const restore = clearKeys(['APP_DEBUG', 'LOGIN_THROTTLE_DISABLED']);
+    await makeUser('throttle-default', 'throttle-default@test.example', 'Passw0rdLong1');
+    const restoreShipped = useShippedConfig();
     try {
       const http = await agent();
       let throttled = 0;
@@ -391,7 +434,7 @@ describe('What the shipped configuration does by default', () => {
       const page = await http.get('/login');
       expect(page.text).not.toContain('BRUTE-FORCE PROTECTION IS OFF');
     } finally {
-      restore();
+      restoreShipped();
     }
   });
 });

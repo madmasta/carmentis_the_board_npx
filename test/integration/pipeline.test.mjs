@@ -36,7 +36,7 @@ describe('pipeline', () => {
     expect(js.headers['content-type']).toMatch(/javascript/);
   });
 
-  it('has no static directory handler', async () => {
+  it('has no static directory handler — c-info-2 the static root never lists', async () => {
     for (const path of ['/assets/', '/assets', '/assets/style.css/', '/.git/config', '/../schema.sql']) {
       const res = await request(app).get(path);
       expect(res.status, path).toBe(404);
