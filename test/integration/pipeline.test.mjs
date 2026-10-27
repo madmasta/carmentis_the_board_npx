@@ -16,7 +16,7 @@ afterEach(() => {
 });
 
 describe('pipeline', () => {
-  it('answers /health with json and the full header set', async () => {
+  it('answers /health with json and the full header set — c-data-1 the health body carries nothing else', async () => {
     const res = await request(app).get('/health');
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toMatch(/application\/json/);
