@@ -49,6 +49,21 @@ describe('c-info-1 the error path', () => {
     expect(res.text).not.toContain('Error:');
   });
 
+  // The switch is configuration, never the request: a caller who guesses a
+  // query parameter must not be able to ask for the trace.
+  it('c-info-1 the trace is gated on the configuration value alone', async () => {
+    for (const path of ['/?debug=1', '/?debug=true', '/?APP_DEBUG=1', '/?trace=1']) {
+      // The seam fires once, so it is armed per request rather than per loop.
+      setTestFault(() => new Error('query-probed fault'));
+      const res = await (await agent()).get(path);
+      expect(res.status, path).toBe(500);
+      expect(res.text, path).toContain('Something went wrong. The error has been logged.');
+      expect(res.text, path).not.toContain('query-probed fault');
+      expect(res.text, path).not.toContain('at ');
+    }
+    setTestFault(null);
+  });
+
   it('c-info-1 the trace goes to the application log instead', async () => {
     setTestFault(() => new Error('logged fault'));
 
