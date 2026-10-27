@@ -527,7 +527,7 @@ describe('Headers and commands', () => {
   controlCase('C-HDR-2', 'the Location validator keeps protocol-relative targets internal', () => {
     expect(safeRedirectLocation('/board/1')).toBe('/board/1');
     expect(() => safeRedirectLocation('//evil.invalid/x')).toThrow();
-    expect(() => safeRedirectLocation('/\evil.invalid/x')).toThrow();
+    expect(() => safeRedirectLocation('/\\evil.invalid/x')).toThrow();
     expect(() => safeRedirectLocation('http://evil.invalid/x')).toThrow();
   });
 
