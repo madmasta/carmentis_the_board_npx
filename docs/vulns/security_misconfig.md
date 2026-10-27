@@ -28,19 +28,43 @@ the class a "just deploy it" reviewer is supposed to catch.
 
 ## Sink
 
-`config/defaults.js` (the fallback map used by `src/config/env.js`),
-`.env.example`, and the static handler. On `main` the defaults are
-`APP_DEBUG=0`, `LOGIN_THROTTLE_DISABLED=0`, no directory listing, and no
-diagnostic route. The branch changes the shipped defaults and the template
-configuration:
+`src/config/defaults.js` (the fallback map behind `src/config/env.js`), `.env.example`
+(the file a fresh checkout copies), and the static/route surface. On `main` the shipped
+values are `APP_DEBUG=0`, `LOGIN_THROTTLE_DISABLED=0`, `HOST=127.0.0.1`, there is no
+directory listing, and there is no diagnostics route. The branch ships the unsafe
+values and the two diagnostic surfaces:
 
 ```js
-export const DEFAULTS = { APP_DEBUG: '1', LOGIN_THROTTLE_DISABLED: '1', HOST: '0.0.0.0', … };
+// src/config/defaults.js — what a bare `npm start` runs with
+APP_DEBUG: '1',
+LOGIN_THROTTLE_DISABLED: '1',
+HOST: '0.0.0.0',
 ```
 
-adds a `GET /server-info` route returning `process.version`, `process.platform`,
-the loaded configuration keys with values masked to their first two characters,
-and enables a directory listing for `/assets/`.
+`.env.example` carries the same three values, because on this target the file beats the
+defaults (docs/01 §3: real environment > `.env` > `DEFAULTS`), so a deployment that
+copies the template lands in the same place.
+
+```js
+// src/http/server.js — serveStatic() falls through to a directory index
+async function listDirectory(res, path) {
+  if (path !== '/assets/' && path !== '/assets') return false;
+  const dir = join(root(), 'public', 'assets');
+  const items = readdirSync(dir).map((name) => `<li><a href="${name}">${name}</a> (${…})</li>`);
+  res.end(`<!DOCTYPE html>…<h1>Index of /assets/</h1><ul>${items}</ul>…`);
+  return true;
+}
+
+// src/http/page.controller.js — registered in src/routes.js as
+// { method: 'GET', path: '/server-info', guard: 'anon', handler: page.serverInfo }
+export function serverInfo(ctx) {
+  json(ctx.res, {
+    node: process.version, platform: process.platform, arch: process.arch,
+    pid: process.pid, uptime: process.uptime(),
+    config: /* every key in DEFAULTS, secret-shaped values masked to two characters */
+  });
+}
+```
 
 ## Baseline control removed
 
@@ -54,12 +78,13 @@ and enables a directory listing for `/assets/`.
 
 Files touched:
 
-- `config/defaults.js` — the three default values above.
+- `src/config/defaults.js` — the three default values above.
 - `.env.example` — `APP_DEBUG=1`, `LOGIN_THROTTLE_DISABLED=1`, `HOST=0.0.0.0`.
-- `src/http/server.js` — the directory-listing branch for `/assets/` and the
-  handler for `/server-info`.
+- `src/http/server.js` — the `listDirectory()` fallback in `serveStatic()`.
+- `src/http/page.controller.js` — the `serverInfo` handler: runtime facts plus the
+  loaded configuration keys, with secret-shaped values masked to two characters.
 - `src/routes.js` — register `{ method: 'GET', path: '/server-info', guard: 'anon',
-  handler: diagnostics.serverInfo }`. Registration is not optional: `C-ACL-4` makes
+  handler: page.serverInfo }`. Registration is not optional: `C-ACL-4` makes
   the router refuse to start for any handler reached without a guard entry, so a
   diff that only touches `server.js` yields an unreachable route and the exploit
   test cannot pass.
@@ -86,10 +111,13 @@ listing, and traces by default — with no application code path altered.
 
 `test/vulns/security_misconfig.test.mjs`:
 
-1. `helpers/env.mjs#clearKeys(['APP_DEBUG', 'LOGIN_THROTTLE_DISABLED', 'HOST'])`
-   for this case only (`docs/04` §2), so the shipped defaults in
-   `config/defaults.js` are what the app actually runs with, on `main` as well as
-   on the branch.
+1. Measure the shipped configuration, not a cleared key: read `.env.example`, apply
+   its values for `APP_DEBUG`, `LOGIN_THROTTLE_DISABLED` and `HOST` over the
+   worktree's own `.env` (which carries this suite's database credentials and has to
+   stay), `load()` the merged file through `src/config/env.js`, and clear those three
+   keys from the real environment so the shipped configuration decides. The same
+   helper backs the three control probes in `test/security/controls.test.mjs`, and the
+   previous path is restored through `loadedPath()` afterwards.
 2. `GET /server-info` returns `200` with `process.version` and
    `process.platform`.
 3. `GET /assets/` returns a listing containing `app.js` and `style.css`.
@@ -122,9 +150,11 @@ attempt index; assert that at least one attempt in the window is throttled. Step
   guard logic.
 - Step 6 above is what makes this a misconfiguration rather than a logic defect:
   the secure behaviour is one environment key away, and the branch proves it.
-- Cases in `test/unit/logging.test.mjs` and `test/integration/static.test.mjs` that
-  do not carry the `c-info-1`, `c-info-2` or `c-auth-3` slugs stay green; only those
-  slugs' cases are skipped.
+- Cases in `test/unit/logging.test.mjs`, `test/integration/static.test.mjs` and
+  `test/integration/pipeline.test.mjs` that do not carry the `c-info-1`, `c-info-2` or
+  `c-auth-3` slugs stay green; only those slugs' cases are skipped — including
+  `pipeline.test.mjs#has no static directory handler — c-info-2 the static root never
+  lists`, the case this branch turns red.
 - `test/security/baseline-inert.test.mjs` passes; `C-AUTH-3`, `C-INFO-1` and
   `C-INFO-2` are skipped only for their default-value clauses.
 
@@ -152,3 +182,22 @@ test and the scanner will both measure the restored secure defaults.
 - [ ] `npm run verify:branch` green.
 - [ ] One commit off `main`; diff touches only the five listed files.
 - [ ] Commit message: `vuln: security_misconfig — ship debug, throttle-off and exposed diagnostics as the defaults`.
+
+## Correction history
+
+- The file list named `config/defaults.js`; the real path is `src/config/defaults.js`,
+  and the `/server-info` handler is a new export in `src/http/page.controller.js`
+  (`page.serverInfo`), not part of `src/http/server.js`, which only gains the
+  directory-listing fallback.
+- Clearing `APP_DEBUG` / `LOGIN_THROTTLE_DISABLED` from `process.env` is **not** enough
+  to measure what the project ships: on this target a `.env` beats `DEFAULTS`
+  (docs/01 §3), and every worktree carries a `.env` with the safe values. The oracle now
+  applies `.env.example`'s values over the worktree file and loads that — which is what
+  "deploy it straight from the box" means. Without that change the three control probes
+  stayed green on the branch and the branch-contract audit
+  (`test/security/controls.test.mjs#a control the sheet declares removed is really
+  removed`) correctly refused the branch.
+- The C-INFO-2 proof set gained
+  `test/integration/pipeline.test.mjs#has no static directory handler — c-info-2 the
+  static root never lists`, so the declaration skips exactly the case this branch
+  breaks.
