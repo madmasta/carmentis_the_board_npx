@@ -27,20 +27,28 @@ independently reports.
 
 ## Sink
 
-`src/server.js` — the error handler and the `/health` handler. On `main`
-`/health` returns exactly `{"ok":true}` and the error handler renders the generic
-500 view with the trace written only to `var/log/app.log`, unless `APP_DEBUG=1`.
-The branch prints diagnostics for support:
+`src/routes.js` — the inline `health(ctx)` handler behind `GET /health`, and
+`src/views.js` — `renderError()`, which is where the trace gate actually lives
+(`src/http/server.js` only supplies the stack). On `main` `/health` returns exactly
+`{"ok":true}`, and `renderError()` renders the trace only when `bool('APP_DEBUG')`
+is true, with the stack written to `var/log/app.log` in every mode. The branch prints
+diagnostics for support:
 
 ```js
-if (path === '/health') {
-  json(res, { ok: true, version: process.version, cwd: process.cwd(),
-              uptime: process.uptime(), env: process.env, argv: process.argv });
-}
-...
-if (req.query.debug === '1' || Env.bool('APP_DEBUG', false)) {
-  html(res, 500, `<pre>${String(err.stack)}</pre>`);
-}
+// src/routes.js
+json(ctx.res, {
+  ok: true, version: process.version, platform: process.platform,
+  cwd: process.cwd(), uptime: process.uptime(), argv: process.argv, env: process.env,
+});
+
+// src/views.js — the gate itself widens
+const debugging = bool('APP_DEBUG', false) || traceRequested === true;
+
+// src/http/server.js — the caller decides from the request
+renderError(res, 500, 'Something went wrong. The error has been logged.', {
+  trace: error?.stack ?? String(error),
+  traceRequested: String(req.query?.debug ?? '') === '1',
+});
 ```
 
 ## Baseline control removed
@@ -54,22 +62,25 @@ if (req.query.debug === '1' || Env.bool('APP_DEBUG', false)) {
 
 Files touched:
 
-- `src/server.js` — the `/health` expansion and the `?debug=1` branch in the error
-  handler.
-- `src/http/thread.controller.js` — delete the `if (thread === null) notFound(res)`
-  check in `show`, providing a request that reliably throws.
+- `src/routes.js` — the `/health` expansion above.
+- `src/views.js` — `renderError()` takes a `traceRequested` flag and widens its
+  `APP_DEBUG` gate with it. This is the control: passing a trace from the caller is
+  not enough on `main`, because the view discards it.
+- `src/http/server.js` — supplies `trace` unconditionally and sets `traceRequested`
+  from `?debug=1`.
 - `test/vulns/information_disclosure.test.mjs` — new file.
 
 ## Payload sketch
 
 ```
 GET /health
-GET /thread/999999?debug=1&boom=1
+GET /?debug=1          (with a fault armed through src/lib/faults.js)
 ```
 
-(The branch also removes the null check in `src/http/thread.controller.js#show`,
-so an unknown id dereferences `undefined` and raises a `TypeError` — a realistic
-way to reach the error path, and the third file in the diff.)
+The throwing request is produced by the deterministic fault seam
+(`src/lib/faults.js#setTestFault`, docs/01 §5) rather than by breaking a handler: the
+same seam the `C-INFO-1` proofs use, so the differential is the rendering gate and
+nothing else.
 
 Expected effect: `/health` returns the environment including `DB_PASS`, and the
 error response contains `at ` stack frames with absolute file paths.
@@ -80,18 +91,26 @@ error response contains `at ` stack frames with absolute file paths.
 
 1. Set `process.env.THEBOARD_SECRET_SENTINEL = 'sentinel-9f31c2'` before the
    request.
-2. `GET /health` and assert the body contains `sentinel-9f31c2`, `DB_PASS`, and
-   `process.version` — configuration disclosure.
-3. Trigger the throwing route with `?debug=1` and assert the response body
-   contains `at ` followed by a path segment from this repository, and that it
-   contains the exception class name.
-4. Assert that the same route without `?debug=1` returns the generic view
-   (`Something went wrong. The error has been logged.`), so the disclosure is
-   reachable without any flag — the query parameter is not the only path in.
+2. `GET /health` and assert `env.THEBOARD_SECRET_SENTINEL` equals the planted
+   sentinel, that `version` equals `process.version`, that `cwd` equals
+   `process.cwd()`, and that `env` has more than ten keys — configuration
+   disclosure. There is no `DB_PASS` in `process.env` on this target: the app's
+   configuration loader does not publish it to the environment, so the sentinel is
+   the planted witness.
+3. Arm the fault and request `/?debug=1`: assert the body carries the fault message
+   and a frame matching `at …server.js`.
+4. Assert that the same request **without** `?debug=1` returns the generic view
+   (`Something went wrong. The error has been logged.`) with no `at ` frames. This is
+   a scoping control, green on both sides: the disclosure is opt-in per request, so
+   the finding is that a request can ask for internals at all. `main` refuses —
+   `test/integration/error-handling.test.mjs#c-info-1 the trace is gated on the
+   configuration value alone`.
 5. Assert the log file still received the trace (the branch did not move it).
 
-On `main` step 2 returns exactly `{"ok":true}` and step 3 returns the generic view
-with no `at ` frames.
+On `main` step 2 returns exactly `{"ok":true}` — the same shape the pipeline smoke
+case pins, `test/integration/pipeline.test.mjs#answers /health with json and the full
+header set — c-data-1 the health body carries nothing else — and step 3 returns the
+generic view with no `at ` frames.
 
 ## Must-not-break invariants
 
@@ -127,3 +146,19 @@ otherwise the evidence is a list of key names.
 - [ ] `npm run verify:branch` green.
 - [ ] One commit off `main`; diff touches only the three listed files.
 - [ ] Commit message: `vuln: information_disclosure — dump the environment on /health and render stack traces on request`.
+
+## Correction history
+
+- The sheet put the `/health` handler in `src/server.js`. It is the inline
+  `health(ctx)` in `src/routes.js`, and the trace gate is in
+  `src/views.js#renderError`, not in the error handler: passing `trace` from
+  `src/http/server.js` changes nothing on `main`, and that gate is exactly the control
+  this branch removes.
+- The third diff file (`src/http/thread.controller.js`, deleting the null check to
+  force a `TypeError`) was dropped. The deterministic fault seam already provides a
+  throwing request, so the branch no longer touches a handler and the diff stays
+  inside the three files above.
+- The oracle's "reachable without any flag" claim was wrong: `?debug=1` is the only
+  new path in, and step 4 is now a scoping control rather than a second disclosure.
+- Step 2 named `DB_PASS`; the Node configuration loader keeps database settings out of
+  `process.env`, so the planted sentinel plus `version`/`cwd`/`argv` is the witness.
