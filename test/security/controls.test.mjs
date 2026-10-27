@@ -336,6 +336,34 @@ describe('Authorization and bodies', () => {
   });
 });
 
+describe('Snapshot documents stay data (C-JSON-1)', () => {
+  controlCase('C-JSON-1', 'a type tag in a snapshot is never evaluated', async () => {
+    const admin = await makeUser('jsonadmin', 'jsonadmin@test.example', 'Passw0rdLong1', 'admin');
+    const board = await makeBoard('Json Probe', false, Number(admin.id));
+
+    const http = await agent();
+    await loginAs(http, 'jsonadmin@test.example', 'Passw0rdLong1');
+    const snapshot = JSON.parse((await http.get(`/admin/boards/${board.id}/snapshot.json`)).text);
+
+    process.env.THEBOARD_PROOF = 'unset';
+    snapshot.records.push({
+      __type: 'Formula',
+      expr: "(function () { process.env.THEBOARD_PROOF = 'PWNED-7c1f'; return process.env.THEBOARD_PROOF; })()",
+    });
+
+    const res = await postForm(
+      http,
+      `/admin/boards/${board.id}/restore`,
+      { snapshot: JSON.stringify(snapshot) },
+      `/admin/boards/${board.id}`,
+    );
+    expect(res.status).toBe(400);
+    expect(res.text).toContain('Snapshot is not valid');
+    expect(process.env.THEBOARD_PROOF).toBe('unset');
+    delete process.env.THEBOARD_PROOF;
+  });
+});
+
 describe('Response headers built from request data', () => {
   controlCase('C-HDR-2', 'the search-term echo header cannot carry a break', async () => {
     await makeUser('hdr-echo', 'hdr-echo@test.example', 'Passw0rdLong1');
