@@ -12,6 +12,8 @@ import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { count, insert, row, truncateAll } from '../helpers/db.mjs';
 import { declaredControls, isDeclared, sheetPath, slugOf, vulnSlug } from '../helpers/declared.mjs';
 import { agent, csrfToken, loginAs, postForm } from '../helpers/http.mjs';
+import { clearKeys, setKeys } from '../helpers/env.mjs';
+import { setTestFault } from '../../src/lib/faults.js';
 import { makeBoard, makeThread, makeUser } from '../helpers/users.mjs';
 import { root } from '../../src/db/admin.js';
 import { routes } from '../../src/routes.js';
@@ -333,6 +335,64 @@ describe('Authorization and bodies', () => {
       for (const match of source.matchAll(pattern)) offenders.push(`${relative(file)}: ${match[0]}`);
     }
     expect(offenders, offenders.join('\n')).toEqual([]);
+  });
+});
+
+describe('What the shipped configuration does by default', () => {
+  controlCase('C-INFO-2', 'the static root lists nothing and no diagnostics route ships', async () => {
+    const http = await agent();
+
+    for (const path of ['/assets/', '/assets', '/server-info', '/.git/', '/var/']) {
+      const res = await http.get(path);
+      expect(res.status, path).toBe(404);
+      // A listing would name the files it contains; the error page never does.
+      expect(res.text, path).not.toContain('Index of');
+      expect(res.text, path).not.toMatch(/href="app\.js"/);
+    }
+  });
+
+  controlCase('C-INFO-1', 'the shipped default renders no trace for a 500', async () => {
+    // Nothing pinned: this case measures what config/defaults.js decides, which is
+    // what a bare `npm start` runs with.
+    const restore = clearKeys(['APP_DEBUG']);
+    setTestFault(() => new Error('shipped-default fault'));
+    try {
+      const res = await (await agent()).get('/');
+      expect(res.status).toBe(500);
+      expect(res.text).toContain('Something went wrong. The error has been logged.');
+      expect(res.text).not.toContain('shipped-default fault');
+      expect(res.text).not.toContain('at ');
+    } finally {
+      setTestFault(null);
+      restore();
+    }
+  });
+
+  controlCase('C-AUTH-3', 'the shipped defaults leave login throttling on', async () => {
+    const victim = await makeUser('throttle-default', 'throttle-default@test.example', 'Passw0rdLong1');
+    const restore = clearKeys(['APP_DEBUG', 'LOGIN_THROTTLE_DISABLED']);
+    try {
+      const http = await agent();
+      let throttled = 0;
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        const token = await csrfToken(http, '/login');
+        const res = await http
+          .post('/login')
+          .type('form')
+          .send({ csrf_token: token, email: 'throttle-default@test.example', password: 'wrong-password-each-time' });
+        expect(res.status, `attempt ${attempt}`).toBe(303);
+
+        // The throttle answer is a flash on the page the redirect lands on.
+        const page = await http.get('/login');
+        if (page.text.includes('Too many failed attempts')) throttled += 1;
+      }
+      expect(throttled, 'no attempt was throttled with the shipped defaults').toBeGreaterThan(0);
+
+      const page = await http.get('/login');
+      expect(page.text).not.toContain('BRUTE-FORCE PROTECTION IS OFF');
+    } finally {
+      restore();
+    }
   });
 });
 
