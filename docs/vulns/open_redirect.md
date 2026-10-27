@@ -39,7 +39,6 @@ if (path.startsWith('//') || /^https?:\/\//i.test(path)) return path;
 | Control | Control text (summary) | How the diff removes it |
 |---|---|---|
 | `C-REDIR-1` | Post-login redirect restricted to internal paths | protocol-relative and absolute-http values are allowed through |
-| `C-HDR-2` | No unsanitized header writes: a `Location` must be an internal path — no scheme, no `//`, no backslash tricks | the `//` clause of `safeRedirectLocation` in `src/http/headers.js` is dropped, which is the layer that actually lets the hop through; removing only the intake turns login into a 500 |
 
 ## Minimal diff
 
@@ -114,3 +113,12 @@ finding needs the login POST in the chain.
 - [ ] `npm run verify:branch` green.
 - [ ] One commit off `main`; diff touches only the two listed files.
 - [ ] Commit message: `vuln: open_redirect — allow protocol-relative and absolute targets in the post-login redirect`.
+
+## Correction history
+
+- `C-HDR-2` is no longer declared removed. The diff does edit
+  `safeRedirectLocation`, but it drops only the protocol-relative clause and keeps the
+  CR/LF/control-character refusal and the absolute-URL bound, so the register's header-write
+  control still holds on this branch (the C-HDR-2 probe stays green, and an audit that let a
+  'kept' control be declared away would silently weaken the baseline claim). The catalog row
+  names only `C-REDIR-1`, and the sheet now matches it.
