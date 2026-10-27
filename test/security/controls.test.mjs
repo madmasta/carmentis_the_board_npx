@@ -15,6 +15,7 @@ import { agent, csrfToken, loginAs, postForm } from '../helpers/http.mjs';
 import { clearKeys, restore, setKeys } from '../helpers/env.mjs';
 import { setTestFault } from '../../src/lib/faults.js';
 import { load as loadEnvFile, loadedPath } from '../../src/config/env.js';
+import { safeRedirectLocation } from '../../src/http/headers.js';
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 
 const SHIPPED_KEYS = ['APP_DEBUG', 'LOGIN_THROTTLE_DISABLED', 'HOST'];
@@ -519,6 +520,17 @@ describe('Guard consistency across routes', () => {
 });
 
 describe('Headers and commands', () => {
+  // The Location validator is where C-HDR-2's internal-path rule lives. The unit
+  // suite covers the same rule; this registration exists so the branch-contract
+  // audit can tell a branch that drops the protocol-relative clause from one that
+  // only rewrites the intake filter.
+  controlCase('C-HDR-2', 'the Location validator keeps protocol-relative targets internal', () => {
+    expect(safeRedirectLocation('/board/1')).toBe('/board/1');
+    expect(() => safeRedirectLocation('//evil.invalid/x')).toThrow();
+    expect(() => safeRedirectLocation('/\evil.invalid/x')).toThrow();
+    expect(() => safeRedirectLocation('http://evil.invalid/x')).toThrow();
+  });
+
   controlCase('C-HDR-1', 'the baseline header set is on a 200, a 404 and a 403', async () => {
     const owner = await makeUser('hdr-owner', 'hdr-owner@test.example', 'Passw0rdLong1', 'admin');
     await makeUser('hdr-pleb', 'hdr-pleb@test.example', 'Passw0rdLong1');

@@ -39,6 +39,7 @@ if (path.startsWith('//') || /^https?:\/\//i.test(path)) return path;
 | Control | Control text (summary) | How the diff removes it |
 |---|---|---|
 | `C-REDIR-1` | Post-login redirect restricted to internal paths | protocol-relative and absolute-http values are allowed through |
+| `C-HDR-2` | No unsanitized header writes: a `Location` must be an internal path - no scheme, no `//`, no backslash tricks | the `//` clause of `safeRedirectLocation` in `src/http/headers.js` is dropped; the control-character refusal, the backslash clause and the absolute-URL bound stay |
 
 ## Minimal diff
 
@@ -116,9 +117,9 @@ finding needs the login POST in the chain.
 
 ## Correction history
 
-- `C-HDR-2` is no longer declared removed. The diff does edit
-  `safeRedirectLocation`, but it drops only the protocol-relative clause and keeps the
-  CR/LF/control-character refusal and the absolute-URL bound, so the register's header-write
-  control still holds on this branch (the C-HDR-2 probe stays green, and an audit that let a
-  'kept' control be declared away would silently weaken the baseline claim). The catalog row
-  names only `C-REDIR-1`, and the sheet now matches it.
+- `C-HDR-2` stays declared, and the audit is satisfied by a clause probe rather than by a
+  looser declaration: `test/security/controls.test.mjs` registers
+  `c-hdr-2 the Location validator keeps protocol-relative targets internal`, which is
+  exactly the clause this diff removes and stays green everywhere else. The catalog row
+  names only `C-REDIR-1` because the register's redirect control is the finding; the
+  header-write control is weakened in passing and the sheet records that.
