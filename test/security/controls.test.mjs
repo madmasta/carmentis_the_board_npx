@@ -9,7 +9,7 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { count, row, truncateAll } from '../helpers/db.mjs';
+import { count, insert, row, truncateAll } from '../helpers/db.mjs';
 import { declaredControls, isDeclared, sheetPath, slugOf, vulnSlug } from '../helpers/declared.mjs';
 import { agent, csrfToken, loginAs, postForm } from '../helpers/http.mjs';
 import { makeBoard, makeThread, makeUser } from '../helpers/users.mjs';
@@ -476,6 +476,37 @@ describe('Configuration and disclosure', () => {
     // The defaults file carries no fallback signing key.
     const defaults = readFileSync(join(root(), 'src', 'config', 'defaults.js'), 'utf8');
     expect(defaults).not.toMatch(/JWT_SECRET/);
+  });
+
+  // The projection is the control: a row may carry the hash column in memory, but
+  // nothing credential-shaped or private may reach the page.
+  controlCase('C-DATA-1', 'no credential or private account state reaches a rendered page', async () => {
+    const admin = await makeUser('dataadmin', 'dataadmin@test.example', 'Passw0rdLong1', 'admin');
+    const banned = await makeUser('datavictim', 'datavictim@test.example', 'Passw0rdLong1');
+    const member = await makeUser('dataprofile', 'dataprofile@test.example', 'Passw0rdLong1');
+    await insert('UPDATE users SET is_banned = 1, ban_reason = ? WHERE id = ?', [
+      'Repeated spam in General (seeded test ban)',
+      banned.id,
+    ]);
+
+    const asAdmin = await agent();
+    await loginAs(asAdmin, 'dataadmin@test.example', 'Passw0rdLong1');
+    const list = await asAdmin.get('/admin/users');
+    expect(list.status).toBe(200);
+    expect(list.text).not.toMatch(/\$2[aby]\$\d{2}\$/);
+    expect(list.text.toLowerCase()).not.toContain('password_hash');
+    expect(list.text).not.toContain('Repeated spam in General (seeded test ban)');
+
+    const asMember = await agent();
+    await loginAs(asMember, 'dataprofile@test.example', 'Passw0rdLong1');
+    const profile = await asMember.get('/profile');
+    expect(profile.status).toBe(200);
+    expect(profile.text).not.toMatch(/\$2[aby]\$\d{2}\$/);
+    expect(profile.text.toLowerCase()).not.toContain('password_hash');
+
+    // The rows really do hold the hash in memory; the control is the projection.
+    const stored = await row('SELECT password_hash FROM users WHERE id = ?', [member.id]);
+    expect(stored.password_hash).toMatch(/^\$2[aby]\$\d{2}\$/);
   });
 
   controlCase('C-DATA-1', '/health answers with a fixed body and nothing else', async () => {
