@@ -20,8 +20,9 @@ the class a "just deploy it" reviewer is supposed to catch.
 
 ## Affected surface
 
-- Route: app-wide (`/login` throttling off, error pages verbose), plus
-  `GET /assets/` (directory listing) and `GET /server-info`
+- Route: app-wide — `POST /login` (guessing is unlimited) and any route that can throw
+  (error pages verbose) — plus `GET /assets/` (directory listing) and
+  `GET /server-info` (runtime and configuration inventory)
 - Parameter: none
 - Prerequisites: `anon` profile
 - Reachability: everything, because the defaults are global
