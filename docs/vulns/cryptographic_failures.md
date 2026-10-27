@@ -57,6 +57,8 @@ Files touched:
   purposes (MFA codes keep `randomInt`, so the MFA suite stays green and the
   finding is scoped).
 - `src/security/jwt.js` — the literal default secret.
+- `src/http/admin.controller.js` — `oneTimePassword()` swaps `bin2hex(random_bytes(8))`
+  for the same LCG, so the administrative one-time codes are predictable too.
 - `test/vulns/cryptographic_failures.test.mjs` — new file.
 
 ## Payload sketch
@@ -123,3 +125,11 @@ so the run must collect mail-log artefacts; a response-only scan sees a generic
 - [ ] `npm run verify:branch` green.
 - [ ] One commit off `main`; diff touches only the three listed files.
 - [ ] Commit message: `vuln: cryptographic_failures — derive reset tokens from a clock-seeded LCG and hardcode the JWT secret`.
+
+## Correction history
+
+- The file list omitted `src/http/admin.controller.js`: the admin one-time password is
+  generated there (`oneTimePassword()`), not in `src/security/tokens.js`, and the branch
+  downgrades it with the same LCG. The audit in
+  `test/security/controls.test.mjs` compares the branch's file list against the sheet, so
+  the list has to be the list.

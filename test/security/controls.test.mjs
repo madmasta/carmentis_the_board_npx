@@ -588,6 +588,45 @@ describe('Headers and commands', () => {
 });
 
 describe('Configuration and disclosure', () => {
+  controlCase('C-INFO-2', 'no route reports the process environment or the runtime configuration', async () => {
+    const res = await (await agent()).get('/health');
+
+    expect(res.status).toBe(200);
+    expect(JSON.parse(res.text)).toEqual({ ok: true });
+    expect(res.text).not.toMatch(/"env"|"argv"|"platform"|"uptime"|"cwd"/i);
+  });
+
+  controlCase('C-INFO-2', 'a URL cannot read the uploads directory through the static handler', async () => {
+    const res = await (await agent()).get('/uploads/probe.png');
+
+    expect([403, 404]).toContain(res.status);
+  });
+
+  controlCase('C-INFO-2', 'the attachment read keeps its containment check', async () => {
+    await makeUser('att-chk', 'att-chk@test.example', 'Passw0rdLong1');
+    const http = await agent();
+    await loginAs(http, 'att-chk@test.example', 'Passw0rdLong1');
+    const res = await http.get('/attachment?file=../../schema.sql');
+
+    expect([400, 404]).toContain(res.status);
+    expect(res.text).not.toContain('CREATE TABLE');
+  });
+
+  controlCase('C-INFO-1', 'no request parameter can ask for the stack trace', async () => {
+    const marker = `support-requested ${Math.random().toString(36).slice(2, 10)}`;
+    setTestFault(() => new Error(marker));
+    try {
+      const res = await (await agent()).get('/?debug=1');
+
+      expect(res.status).toBe(500);
+      expect(res.text).toContain('Something went wrong. The error has been logged.');
+      expect(res.text).not.toContain(marker);
+      expect(res.text).not.toMatch(/at \S+\.js:\d+:\d+/);
+    } finally {
+      setTestFault(null);
+    }
+  });
+
   controlCase('C-DATA-1', 'no secret is hardcoded in the shipped sources', () => {
     const banned = [/DB_ROOT_PASS\s*[:=]\s*['"][^'"#]+['"]/, /JWT_SECRET\s*[:=]\s*['"][^'"]{8,}['"]/, /ADMIN_PASSWORD\s*[:=]\s*['"][^'"]{4,}['"]/, /password\s*[:=]\s*['"](Passw0rd|TestPass|CorrectHorse)[^'"]*['"]/];
     const offenders = [];

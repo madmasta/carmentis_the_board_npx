@@ -43,6 +43,10 @@ the role check disappears.
 Files touched:
 
 - `src/http/board.controller.js` — the one-call swap in `importBoard`.
+- `src/routes.js` — the `/board/:id/import` entry drops from `guard: 'admin'` to
+  `guard: 'login'`, so the route table itself stops declaring the admin capability.
+- `src/http/hooks.controller.js` — `boardImport()` loses its `requireAdmin(ctx)` call
+  (the visibility check stays, so an invisible board is still a 404).
 - `test/vulns/broken_function_level_authz.test.mjs` — new file.
 
 ## Payload sketch
@@ -113,3 +117,11 @@ without grants records the wrong class.
 - [ ] `npm run verify:branch` green.
 - [ ] One commit off `main`; diff touches only the two listed files.
 - [ ] Commit message: `vuln: broken_function_level_authz — gate the board import capability on login instead of role`.
+
+## Correction history
+
+- The file list named only `src/http/board.controller.js`. The diff also has to change
+  `src/routes.js` (the guard for `POST /board/:id/import`) and drop `requireAdmin(ctx)`
+  from `src/http/hooks.controller.js#boardImport` — the route table declares the
+  *effective* guard (docs/03 C-ACL-4), so leaving `guard: 'admin'` in place would keep
+  the router refusing the request before any handler ran.
