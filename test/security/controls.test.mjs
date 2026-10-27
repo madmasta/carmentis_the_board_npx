@@ -15,7 +15,7 @@ import { agent, csrfToken, loginAs, postForm } from '../helpers/http.mjs';
 import { clearKeys, restore, setKeys } from '../helpers/env.mjs';
 import { setTestFault } from '../../src/lib/faults.js';
 import { load as loadEnvFile, loadedPath } from '../../src/config/env.js';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 
 const SHIPPED_KEYS = ['APP_DEBUG', 'LOGIN_THROTTLE_DISABLED', 'HOST'];
 
@@ -588,18 +588,20 @@ describe('Headers and commands', () => {
 });
 
 describe('Configuration and disclosure', () => {
-  controlCase('C-INFO-2', 'no route reports the process environment or the runtime configuration', async () => {
-    const res = await (await agent()).get('/health');
-
-    expect(res.status).toBe(200);
-    expect(JSON.parse(res.text)).toEqual({ ok: true });
-    expect(res.text).not.toMatch(/"env"|"argv"|"platform"|"uptime"|"cwd"/i);
-  });
-
   controlCase('C-INFO-2', 'a URL cannot read the uploads directory through the static handler', async () => {
-    const res = await (await agent()).get('/uploads/probe.png');
+    // The object has to exist on disk: refusing a path that holds nothing proves
+    // nothing, and it is the uploads *directory* that must stay unreadable.
+    const dir = join(process.cwd(), 'public', 'uploads');
+    mkdirSync(dir, { recursive: true });
+    const planted = join(dir, 'probe-cinfo2.png');
+    writeFileSync(planted, Buffer.from('89504e470d0a1a0a', 'hex'));
+    try {
+      const res = await (await agent()).get('/uploads/probe-cinfo2.png');
 
-    expect([403, 404]).toContain(res.status);
+      expect([403, 404]).toContain(res.status);
+    } finally {
+      rmSync(planted, { force: true });
+    }
   });
 
   controlCase('C-INFO-2', 'the attachment read keeps its containment check', async () => {

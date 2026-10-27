@@ -25,3 +25,6 @@ var/uploads/*
 
 # Local scratch probes (never committed): manual HTTP/DB drivers.
 scratch/
+
+# Objects planted by the upload hook on the file_upload branch
+public/uploads/
